@@ -1,5 +1,6 @@
 package top.niunaijun.blackbox.fake.service.context.providers;
 
+import android.os.Bundle;
 import android.os.IInterface;
 
 import java.lang.reflect.Method;
@@ -7,6 +8,7 @@ import java.lang.reflect.Method;
 import black.android.content.BRAttributionSource;
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.app.BActivityThread;
+import top.niunaijun.blackbox.fake.device.DeviceSpoofManager;
 import top.niunaijun.blackbox.fake.hook.ClassInvocationStub;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
 
@@ -71,6 +73,10 @@ public class SystemProviderStub extends ClassInvocationStub implements BContentP
                     }
                 }
             }
+            Bundle spoofed = spoofedSettingResult(args);
+            if (spoofed != null) {
+                return spoofed;
+            }
             return method.invoke(mBase, args);
         }
         
@@ -97,6 +103,30 @@ public class SystemProviderStub extends ClassInvocationStub implements BContentP
             }
         }
         return method.invoke(mBase, args);
+    }
+
+    // Settings.X.getString reaches the provider as call(..., "GET_<table>", key, extras).
+    private static Bundle spoofedSettingResult(Object[] args) {
+        if (args == null) {
+            return null;
+        }
+        for (int i = 0; i < args.length - 1; i++) {
+            if (!(args[i] instanceof String) || !(args[i + 1] instanceof String)) {
+                continue;
+            }
+            String callMethod = (String) args[i];
+            if (!callMethod.startsWith("GET_")) {
+                continue;
+            }
+            String value = DeviceSpoofManager.getSettingOverride(callMethod.substring(4), (String) args[i + 1]);
+            if (value == null) {
+                return null;
+            }
+            Bundle result = new Bundle();
+            result.putString("value", value);
+            return result;
+        }
+        return null;
     }
 
     private boolean isSystemProviderAuthority(String authority) {

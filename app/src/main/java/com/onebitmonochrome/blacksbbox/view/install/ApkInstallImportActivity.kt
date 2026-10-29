@@ -9,7 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import com.onebitmonochrome.blacksbbox.R
 import com.onebitmonochrome.blacksbbox.util.toast
 import com.onebitmonochrome.blacksbbox.view.base.LoadingActivity
-import com.onebitmonochrome.blacksbbox.view.gallery.BlackBoxGalleryUserPicker
+import com.onebitmonochrome.blacksbbox.data.CloneStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,38 +30,31 @@ class ApkInstallImportActivity : LoadingActivity() {
 
         Log.i(TAG, "Received APK install intent: action=${intent.action} type=${intent.type} uris=${uris.joinToString()}")
 
-        chooseUserAndInstall(uris)
+        installApks(uris)
     }
 
-    private fun chooseUserAndInstall(uris: List<Uri>) {
-        val shown = BlackBoxGalleryUserPicker.show(
-            context = this,
-            onSelected = { userId ->
-                installApks(userId, uris)
-            },
-            onCancelled = { finish() }
-        )
-        if (!shown) {
-            toast(R.string.apk_install_import_failed)
-            finish()
-        }
-    }
-
-    private fun installApks(userId: Int, uris: List<Uri>) {
+    // Each APK becomes a new clone with its own engine user, in the user group shown on the home screen.
+    private fun installApks(uris: List<Uri>) {
         showLoading()
         lifecycleScope.launch {
             val (successCount, lastError) = withContext(Dispatchers.IO) {
                 var ok = 0
                 var error: String? = null
+                val groupId = CloneStore.currentGroup().id
                 uris.forEach { uri ->
+                    val userId = CloneStore.allocateUserId(BlackBoxCore.get().users.map { it.id })
                     runCatching {
                         Log.i(TAG, "Installing APK: userId=$userId uri=$uri")
                         val result = BlackBoxCore.get().installPackageAsUser(uri, userId)
                         if (result.success) {
+                            CloneStore.addClone(userId, result.packageName, null, groupId)
                             ok += 1
                         } else {
                             error = result.msg
                             Log.w(TAG, "Install failed: userId=$userId uri=$uri msg=${result.msg}")
+                            if (BlackBoxCore.get().users.any { it.id == userId }) {
+                                BlackBoxCore.get().deleteUser(userId)
+                            }
                         }
                     }.onFailure {
                         error = it.message

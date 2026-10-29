@@ -8,6 +8,7 @@ import android.app.ActivityManager;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.text.TextUtils;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 
@@ -58,6 +59,31 @@ public class ActivityManagerCommonProxy {
         }
         sStartIntentNotResolved = resolved;
         return resolved;
+    }
+
+    /** First in-box activity for the intent whose package is not a web browser, or null. */
+    private static ResolveInfo pickNonBrowserActivity(Intent intent, String resolvedType) {
+        java.util.List<ResolveInfo> candidates = BlackBoxCore.getBPackageManager().queryIntentActivities(
+                intent, GET_META_DATA, resolvedType, BActivityThread.getUserId());
+        if (candidates == null) {
+            return null;
+        }
+        for (ResolveInfo candidate : candidates) {
+            if (candidate.activityInfo != null && !isBrowserPackage(candidate.activityInfo.packageName)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    // Same idea as the system's handleAllWebDataURI: a browser opens web links to any host.
+    private static boolean isBrowserPackage(String packageName) {
+        Intent probe = new Intent(Intent.ACTION_VIEW, Uri.parse("https://example.invalid/"));
+        probe.addCategory(Intent.CATEGORY_BROWSABLE);
+        probe.setPackage(packageName);
+        java.util.List<ResolveInfo> handlers = BlackBoxCore.getBPackageManager().queryIntentActivities(
+                probe, 0, null, BActivityThread.getUserId());
+        return handlers != null && !handlers.isEmpty();
     }
 
     @ProxyMethod("startActivity")
@@ -140,6 +166,17 @@ public class ActivityManagerCommonProxy {
                         BActivityThread.getUserId());
                 if (candidates != null && !candidates.isEmpty()) {
                     resolveInfo = candidates.get(0);
+                }
+            }
+            // The system honours FLAG_ACTIVITY_REQUIRE_NON_BROWSER, but our in-box resolution did
+            // not. Telegram relies on it to try deep-link apps first and otherwise use its own
+            // in-app browser, so any browser in the box hijacked every link.
+            if (resolveInfo != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                    && (intent.getFlags() & Intent.FLAG_ACTIVITY_REQUIRE_NON_BROWSER) != 0) {
+                resolveInfo = pickNonBrowserActivity(intent, StartActivityCompat.getResolvedType(args));
+                if (resolveInfo == null) {
+                    Slog.d(TAG, "Only browsers handle " + intent.getData() + " but caller requires a non-browser");
+                    return getStartIntentNotResolvedCode();
                 }
             }
             if (resolveInfo == null) {

@@ -129,7 +129,7 @@ class FakeManagerActivity : BaseActivity() {
                     val longitude = data.getDoubleExtra("longitude", 0.0)
                     val pkg = data.getStringExtra("pkg")
                     if (pkg.isNullOrBlank()) {
-                        toast("Fake location failed: missing target package")
+                        toast(R.string.fake_location_missing_target)
                         loadAppList()
                         return@registerForActivityResult
                     }

@@ -5,9 +5,19 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Bundle
 import android.os.Build
+import android.view.View
+import android.view.animation.AnimationUtils
+import android.view.animation.DecelerateInterpolator
+import androidx.preference.ListPreference
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.onebitmonochrome.blacksbbox.databinding.ItemCreditBinding
+import com.onebitmonochrome.blacksbbox.databinding.ItemCreditHeaderBinding
+import com.onebitmonochrome.blacksbbox.databinding.SheetCreditsBinding
+import com.onebitmonochrome.blacksbbox.util.LanguageManager
+import com.onebitmonochrome.blacksbbox.util.ThemeManager
+import com.onebitmonochrome.blacksbbox.util.UpdateChecker
 import androidx.core.content.FileProvider
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.PreferenceManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.preference.Preference
@@ -29,6 +39,10 @@ import java.util.Locale
 
 class SettingFragment : PreferenceFragmentCompat() {
 
+    companion object {
+        private const val CONTACT_EMAIL = "support@lqstudio.uk"
+    }
+
     private val vpnPermissionResult =
             registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
                 val vpnPref =
@@ -41,7 +55,7 @@ class SettingFragment : PreferenceFragmentCompat() {
                 } else {
                     AppManager.mBlackBoxLoader.invalidUseVpnNetwork(false)
                     vpnPref.isChecked = false
-                    toast("VPN permission denied")
+                    toast(R.string.vpn_permission_denied)
                 }
             }
 
@@ -50,7 +64,8 @@ class SettingFragment : PreferenceFragmentCompat() {
 
         initGms()
 
-        initDarkMode()
+        initTheme()
+        initLanguage()
 
         initHostSigningFallback()
         initInstantFreezeButton()
@@ -97,7 +112,7 @@ class SettingFragment : PreferenceFragmentCompat() {
         }
 
         initSendLogs()
-        initAboutLinks()
+        initAbout()
     }
 
     private fun initHostSigningFallback() {
@@ -191,23 +206,22 @@ class SettingFragment : PreferenceFragmentCompat() {
         }
     }
 
-    private fun initDarkMode() {
-        val darkModePref = findPreference<SwitchPreferenceCompat>("dark_mode") ?: return
-
-        // Ensure UI reflects persisted preference (in case delegate was changed elsewhere).
-        try {
-            val sp = PreferenceManager.getDefaultSharedPreferences(requireContext())
-            darkModePref.isChecked = sp.getBoolean("dark_mode", false)
-        } catch (_: Exception) {
+    private fun initTheme() {
+        val themePref = findPreference<ListPreference>(ThemeManager.KEY) ?: return
+        // Shows the value carried over from the old dark mode switch.
+        themePref.value = ThemeManager.current(requireContext())
+        themePref.setOnPreferenceChangeListener { _, newValue ->
+            ThemeManager.apply(newValue as String)
+            true
         }
+    }
 
-        darkModePref.setOnPreferenceChangeListener { _, newValue ->
-            val enabled = (newValue == true)
-            AppCompatDelegate.setDefaultNightMode(
-                if (enabled) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
-            )
-            // Apply immediately.
-            activity?.recreate()
+    private fun initLanguage() {
+        val languagePref = findPreference<ListPreference>(LanguageManager.KEY) ?: return
+        languagePref.setOnPreferenceChangeListener { _, newValue ->
+            LanguageManager.set(requireContext(), newValue as String)
+            // Redraws this screen; screens behind it follow when they come back (BaseActivity).
+            requireActivity().recreate()
             true
         }
     }
@@ -298,26 +312,85 @@ class SettingFragment : PreferenceFragmentCompat() {
         }
     }
 
-    private fun initAboutLinks() {
-        val linkMap = mapOf(
-            "about_owner" to "https://github.com/Black00Z",
-            "about_newblackbox" to "https://github.com/ALEX5402/NewBlackbox",
-            "about_virtualapp" to "https://github.com/asLody/VirtualApp",
-            "about_virtualapk" to "https://github.com/didi/VirtualAPK",
-            "about_dobby" to "https://github.com/jmpews/Dobby",
-            "about_xdl" to "https://github.com/hexhacking/xDL",
-            "about_blackreflection" to "https://github.com/CodingGay/BlackReflection",
-            "about_freereflection" to "https://github.com/tiann/FreeReflection"
-        )
+    private fun initAbout() {
+        findPreference<Preference>("about_authors")?.isSelectable = false
 
-        for ((key, url) in linkMap) {
-            findPreference<Preference>(key)?.setOnPreferenceClickListener {
-                openLink(url)
+        findPreference<Preference>("about_upstream")?.setOnPreferenceClickListener {
+            showCredits()
+            true
+        }
+
+        findPreference<Preference>("check_update")?.apply {
+            summary = getString(R.string.check_update_summary, UpdateChecker.currentVersion(requireContext()))
+            setOnPreferenceClickListener {
+                UpdateChecker.check(requireContext())
                 true
             }
         }
 
-        findPreference<Preference>("about_ai_note")?.isSelectable = false
+        findPreference<Preference>("footer_contact")?.setOnPreferenceClickListener {
+            openLink("mailto:$CONTACT_EMAIL")
+            true
+        }
+    }
+
+    // Upstream projects this build is based on, grouped by what they provide.
+    private fun showCredits() {
+        val sections = listOf(
+            R.string.about_main_base_title to listOf(
+                Triple(R.string.about_owner_title, R.string.about_owner_summary, "https://github.com/Black00Z"),
+                Triple(R.string.about_newblackbox_title, R.string.about_link_summary, "https://github.com/ALEX5402/NewBlackbox")
+            ),
+            R.string.about_framework_base_title to listOf(
+                Triple(R.string.about_virtualapp_title, R.string.about_link_summary, "https://github.com/asLody/VirtualApp"),
+                Triple(R.string.about_virtualapk_title, R.string.about_link_summary, "https://github.com/didi/VirtualAPK")
+            ),
+            R.string.about_native_hooking_title to listOf(
+                Triple(R.string.about_dobby_title, R.string.about_link_summary, "https://github.com/jmpews/Dobby"),
+                Triple(R.string.about_xdl_title, R.string.about_link_summary, "https://github.com/hexhacking/xDL")
+            ),
+            R.string.about_reflection_title to listOf(
+                Triple(R.string.about_blackreflection_title, R.string.about_link_summary, "https://github.com/CodingGay/BlackReflection"),
+                Triple(R.string.about_freereflection_title, R.string.about_link_summary, "https://github.com/tiann/FreeReflection")
+            ),
+            R.string.about_ai_note_title to listOf(
+                Triple(R.string.about_ai_note_summary, 0, null)
+            )
+        )
+
+        val dialog = BottomSheetDialog(requireContext())
+        val sheet = SheetCreditsBinding.inflate(layoutInflater)
+        val rows = mutableListOf<View>()
+        for ((header, entries) in sections) {
+            val headerView = ItemCreditHeaderBinding.inflate(layoutInflater, sheet.creditsList, false).root
+            headerView.setText(header)
+            sheet.creditsList.addView(headerView)
+            rows += headerView
+            for ((title, summary, url) in entries) {
+                val row = ItemCreditBinding.inflate(layoutInflater, sheet.creditsList, false)
+                row.creditTitle.setText(title)
+                if (summary != 0) row.creditSummary.setText(summary) else row.creditSummary.visibility = View.GONE
+                if (url != null) {
+                    row.root.setOnClickListener { openLink(url) }
+                } else {
+                    row.root.isClickable = false
+                    row.root.background = null
+                }
+                sheet.creditsList.addView(row.root)
+                rows += row.root
+            }
+        }
+        dialog.setContentView(sheet.root)
+        dialog.setOnShowListener {
+            rows.forEachIndexed { i, view ->
+                view.alpha = 0f
+                view.translationY = 24f
+                view.animate().alpha(1f).translationY(0f)
+                    .setStartDelay(60L + i * 25L).setDuration(260)
+                    .setInterpolator(DecelerateInterpolator()).start()
+            }
+        }
+        dialog.show()
     }
 
     private fun openLink(url: String) {
@@ -328,6 +401,11 @@ class SettingFragment : PreferenceFragmentCompat() {
         }
     }
 
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        listView.layoutAnimation = AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_slide_in)
+    }
+
     private fun buildShareableLogFile(): File {
         val context = requireContext()
         val outDir = File(context.cacheDir, "shared_logs")
@@ -335,7 +413,7 @@ class SettingFragment : PreferenceFragmentCompat() {
             outDir.mkdirs()
         }
 
-        val fileName = "blackbox_log_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.txt"
+        val fileName = "mikan_log_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.txt"
         val outFile = File(outDir, fileName)
         FileOutputStream(outFile).use { fos ->
             val header = buildString {
@@ -377,7 +455,7 @@ class SettingFragment : PreferenceFragmentCompat() {
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "Blacks BlackBox debug logs")
+            putExtra(Intent.EXTRA_SUBJECT, "Mikan debug logs")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         startActivity(Intent.createChooser(sendIntent, getString(R.string.share_logs_chooser_title)))

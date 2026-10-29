@@ -4,9 +4,9 @@ import com.onebitmonochrome.blacksbbox.data.AppsRepository
 import com.onebitmonochrome.blacksbbox.data.FakeLocationRepository
 import com.onebitmonochrome.blacksbbox.data.GmsRepository
 
-import com.onebitmonochrome.blacksbbox.view.apps.AppsFactory
 import com.onebitmonochrome.blacksbbox.view.fake.FakeLocationFactory
 import com.onebitmonochrome.blacksbbox.view.gms.GmsFactory
+import com.onebitmonochrome.blacksbbox.view.home.HomeFactory
 import com.onebitmonochrome.blacksbbox.view.list.ListFactory
 
 
@@ -21,8 +21,8 @@ object InjectionUtil {
 
     private val fakeLocationRepository = FakeLocationRepository()
 
-    fun getAppsFactory() : AppsFactory {
-        return AppsFactory(appsRepository)
+    fun getHomeFactory(): HomeFactory {
+        return HomeFactory(appsRepository)
     }
 
     fun getListFactory(): ListFactory {

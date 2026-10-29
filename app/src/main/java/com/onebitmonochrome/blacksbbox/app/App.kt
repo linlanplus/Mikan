@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.PreferenceManager
 import top.niunaijun.blackbox.BlackBoxCore
+import com.onebitmonochrome.blacksbbox.util.ThemeManager
 
 
 class App : Application() {
@@ -69,12 +70,7 @@ class App : Application() {
             super.onCreate()
 
             try {
-                val sp = PreferenceManager.getDefaultSharedPreferences(this)
-                val darkMode = sp.getBoolean("dark_mode", false)
-                AppCompatDelegate.setDefaultNightMode(
-                        if (darkMode) AppCompatDelegate.MODE_NIGHT_YES
-                        else AppCompatDelegate.MODE_NIGHT_NO
-                )
+                ThemeManager.apply(ThemeManager.current(this))
             } catch (e: Exception) {
                 Log.e("App", "Error applying dark mode: ${e.message}")
             }

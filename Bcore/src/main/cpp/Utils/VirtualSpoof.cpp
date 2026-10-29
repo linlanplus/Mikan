@@ -2,6 +2,7 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include "./xdl.h"
 #include <android/log.h>
 #include <dlfcn.h>
@@ -12,63 +13,44 @@
 #define LOG_TAG "VirtualSpoof"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
+typedef void (*prop_read_cb)(void *cookie, const char *name, const char *value, uint32_t serial);
+
 static int (*orig_system_property_get)(const char *name, char *value) = nullptr;
+static void (*orig_system_property_read_callback)(const prop_info *pi, prop_read_cb callback, void *cookie) = nullptr;
+
+// Property name -> spoofed value. Empty in the host process, filled per guest process.
 static std::mutex g_spoof_mutex;
-static std::string g_manufacturer = "Google";
-static std::string g_brand = "google";
-static std::string g_model = "Pixel 6";
-static std::string g_device = "oriole";
-static std::string g_product = "oriole";
-static std::string g_fingerprint = "google/oriole/oriole:12/SP1A.210812.015/7679548:user/release-keys";
-static std::string g_serial = "1A2B3C4D5E6F";
+static std::unordered_map<std::string, std::string> g_overrides;
 
-static int copy_spoofed_value(const std::string &source, char *value) {
-    strcpy(value, source.c_str());
-    return static_cast<int>(source.size());
-}
-
-void setDeviceSpoofValues(
-        const char *manufacturer,
-        const char *brand,
-        const char *model,
-        const char *device,
-        const char *product,
-        const char *fingerprint,
-        const char *serial) {
+static bool lookup_override(const char *name, std::string &out) {
+    if (name == nullptr) return false;
     std::lock_guard<std::mutex> lock(g_spoof_mutex);
-    if (manufacturer != nullptr) g_manufacturer = manufacturer;
-    if (brand != nullptr) g_brand = brand;
-    if (model != nullptr) g_model = model;
-    if (device != nullptr) g_device = device;
-    if (product != nullptr) g_product = product;
-    if (fingerprint != nullptr) g_fingerprint = fingerprint;
-    if (serial != nullptr) g_serial = serial;
-    LOGD("[spoof] Updated profile: %s %s", g_manufacturer.c_str(), g_model.c_str());
+    if (g_overrides.empty()) return false;
+    auto it = g_overrides.find(name);
+    if (it == g_overrides.end()) return false;
+    out = it->second;
+    return true;
 }
 
+void setPropOverride(const char *name, const char *value) {
+    if (name == nullptr || value == nullptr) return;
+    std::lock_guard<std::mutex> lock(g_spoof_mutex);
+    g_overrides[name] = value;
+}
+
+void clearPropOverrides() {
+    std::lock_guard<std::mutex> lock(g_spoof_mutex);
+    g_overrides.clear();
+}
 
 int my_system_property_get(const char *name, char *value) {
-    std::lock_guard<std::mutex> lock(g_spoof_mutex);
-    if (strcmp(name, "ro.product.model") == 0) {
-        return copy_spoofed_value(g_model, value);
-    }
-    if (strcmp(name, "ro.product.brand") == 0) {
-        return copy_spoofed_value(g_brand, value);
-    }
-    if (strcmp(name, "ro.product.manufacturer") == 0) {
-        return copy_spoofed_value(g_manufacturer, value);
-    }
-    if (strcmp(name, "ro.product.device") == 0) {
-        return copy_spoofed_value(g_device, value);
-    }
-    if (strcmp(name, "ro.product.name") == 0) {
-        return copy_spoofed_value(g_product, value);
-    }
-    if (strcmp(name, "ro.build.fingerprint") == 0) {
-        return copy_spoofed_value(g_fingerprint, value);
-    }
-    if (strcmp(name, "ro.serialno") == 0) {
-        return copy_spoofed_value(g_serial, value);
+    std::string spoofed;
+    if (lookup_override(name, spoofed)) {
+        // Callers provide a PROP_VALUE_MAX buffer.
+        size_t len = spoofed.size() < PROP_VALUE_MAX - 1 ? spoofed.size() : PROP_VALUE_MAX - 1;
+        memcpy(value, spoofed.c_str(), len);
+        value[len] = '\0';
+        return static_cast<int>(len);
     }
     if (orig_system_property_get) {
         return orig_system_property_get(name, value);
@@ -77,25 +59,57 @@ int my_system_property_get(const char *name, char *value) {
     return 0;
 }
 
-void install_property_get_hook() {
-    void* handle = xdl_open("libc.so", XDL_DEFAULT);
-    void* target = xdl_dsym(handle, "__system_property_get", nullptr);
-    if (target) {
-        if (DobbyHook(target, (void*)my_system_property_get, (void**)&orig_system_property_get) == 0) {
-            LOGD("Spoof installed successfully");
-        } else {
-            LOGD("Spoof hook failed");
-        }
-        xdl_close(handle);
-    } else{
-        xdl_close(handle);
-    }
+struct ReadCallbackContext {
+    prop_read_cb callback;
+    void *cookie;
+};
 
+static void spoof_read_callback(void *cookie, const char *name, const char *value, uint32_t serial) {
+    auto *ctx = static_cast<ReadCallbackContext *>(cookie);
+    std::string spoofed;
+    if (lookup_override(name, spoofed)) {
+        ctx->callback(ctx->cookie, name, spoofed.c_str(), serial);
+    } else {
+        ctx->callback(ctx->cookie, name, value, serial);
+    }
+}
+
+// Java SystemProperties and android::base::GetProperty read through this, not __system_property_get.
+void my_system_property_read_callback(const prop_info *pi, prop_read_cb callback, void *cookie) {
+    if (callback == nullptr) {
+        orig_system_property_read_callback(pi, callback, cookie);
+        return;
+    }
+    ReadCallbackContext ctx{callback, cookie};
+    orig_system_property_read_callback(pi, spoof_read_callback, &ctx);
+}
+
+static void hook_symbol(void *handle, const char *symbol, void *replace, void **orig) {
+    void *target = xdl_dsym(handle, symbol, nullptr);
+    if (target == nullptr) {
+        LOGD("Spoof: %s not found", symbol);
+        return;
+    }
+    if (DobbyHook(target, replace, orig) == 0) {
+        LOGD("Spoof: hooked %s", symbol);
+    } else {
+        LOGD("Spoof: hook %s failed", symbol);
+    }
+}
+
+void install_property_get_hook() {
+    void *handle = xdl_open("libc.so", XDL_DEFAULT);
+    if (handle == nullptr) return;
+    hook_symbol(handle, "__system_property_get",
+                (void *) my_system_property_get, (void **) &orig_system_property_get);
+    hook_symbol(handle, "__system_property_read_callback",
+                (void *) my_system_property_read_callback, (void **) &orig_system_property_read_callback);
+    xdl_close(handle);
 }
 
 
 __attribute__((constructor)) void init_virtual_spoof()
 {
     install_property_get_hook();
-    LOGD("VirtualSpoof: __system_property_get hook loaded");
+    LOGD("VirtualSpoof: property hooks loaded");
 }

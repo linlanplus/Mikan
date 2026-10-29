@@ -38,15 +38,8 @@ public class NativeCore {
     
     public static native boolean disableResourceLoading();
 
-    public static native void setDeviceSpoof(
-            String manufacturer,
-            String brand,
-            String model,
-            String device,
-            String product,
-            String fingerprint,
-            String serial
-    );
+    /** Replaces the system property overrides of this process; names[i] reads as values[i]. */
+    public static native void setPropOverrides(String[] names, String[] values);
 
 
     @Keep

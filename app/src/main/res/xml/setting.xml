@@ -4,6 +4,26 @@
 
 
 
+    <PreferenceCategory app:title="@string/appearance">
+
+        <ListPreference
+                app:key="theme_mode"
+                app:title="@string/theme"
+                app:entries="@array/theme_entries"
+                app:entryValues="@array/theme_values"
+                app:defaultValue="system"
+                app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+                app:key="app_language"
+                app:title="@string/language"
+                app:entries="@array/language_entries"
+                app:entryValues="@array/language_values"
+                app:defaultValue="system"
+                app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/other">
 
         <Preference
@@ -32,12 +52,6 @@
                 app:summary="@string/disable_flag_secure_summary" />
 
         <SwitchPreferenceCompat
-                app:key="dark_mode"
-                app:title="@string/dark_mode"
-                app:summary="@string/dark_mode_summary"
-                app:defaultValue="false" />
-
-        <SwitchPreferenceCompat
                 app:key="host_signing_fallback"
                 app:title="@string/host_signing_fallback_title"
                 app:summary="@string/host_signing_fallback_summary"
@@ -59,50 +73,24 @@
     <PreferenceCategory app:title="@string/about_title">
 
         <Preference
-                android:key="about_owner"
-                android:title="@string/about_owner_title"
-                android:summary="@string/about_owner_summary" />
+                android:key="about_authors"
+                android:title="@string/about_authors_title"
+                android:summary="@string/about_authors_summary" />
 
         <Preference
-                android:key="about_newblackbox"
-                android:title="@string/about_newblackbox_title"
-                android:summary="@string/about_newblackbox_summary" />
+                android:key="about_upstream"
+                android:title="@string/about_upstream_title"
+                android:summary="@string/about_upstream_summary" />
 
         <Preference
-                android:key="about_virtualapp"
-                android:title="@string/about_virtualapp_title"
-                android:summary="@string/about_virtualapp_summary" />
-
-        <Preference
-                android:key="about_blackreflection"
-                android:title="@string/about_blackreflection_title"
-                android:summary="@string/about_blackreflection_summary" />
-
-        <Preference
-                android:key="about_virtualapk"
-                android:title="@string/about_virtualapk_title"
-                android:summary="@string/about_virtualapk_summary" />
-
-        <Preference
-                android:key="about_xdl"
-                android:title="@string/about_xdl_title"
-                android:summary="@string/about_xdl_summary" />
-
-        <Preference
-                android:key="about_dobby"
-                android:title="@string/about_dobby_title"
-                android:summary="@string/about_dobby_summary" />
-
-        <Preference
-                android:key="about_freereflection"
-                android:title="@string/about_freereflection_title"
-                android:summary="@string/about_freereflection_summary" />
-
-        <Preference
-                android:key="about_ai_note"
-                android:title="@string/about_ai_note_title"
-                android:summary="@string/about_ai_note_summary" />
+                android:key="check_update"
+                android:title="@string/check_update" />
 
     </PreferenceCategory>
+
+    <Preference
+            android:key="footer_contact"
+            android:layout="@layout/preference_footer"
+            android:title="@string/footer_contact" />
 
 </PreferenceScreen>

@@ -6,6 +6,8 @@ public class DeviceSpoofProfile {
     public final String model;
     public final String device;
     public final String product;
+    /** Retail name shown to users, e.g. "Xiaomi 14". Also used as the device and Bluetooth name. */
+    public final String marketName;
     public final String fingerprint;
     public final String serial;
     public final String androidId;
@@ -16,6 +18,7 @@ public class DeviceSpoofProfile {
             String model,
             String device,
             String product,
+            String marketName,
             String fingerprint,
             String serial,
             String androidId
@@ -25,6 +28,7 @@ public class DeviceSpoofProfile {
         this.model = model;
         this.device = device;
         this.product = product;
+        this.marketName = marketName;
         this.fingerprint = fingerprint;
         this.serial = serial;
         this.androidId = androidId;

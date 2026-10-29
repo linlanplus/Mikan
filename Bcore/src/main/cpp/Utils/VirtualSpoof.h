@@ -1,10 +1,5 @@
 #pragma once
 
-void setDeviceSpoofValues(
-        const char *manufacturer,
-        const char *brand,
-        const char *model,
-        const char *device,
-        const char *product,
-        const char *fingerprint,
-        const char *serial);
+void setPropOverride(const char *name, const char *value);
+
+void clearPropOverrides();

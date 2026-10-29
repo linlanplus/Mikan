@@ -15,7 +15,7 @@ fun Context.toast(msg:String){
 }
 
 fun toast(msg: String){
-    App.getContext().toast(msg)
+    LanguageManager.localized(App.getContext()).toast(msg)
 }
 
 fun toast(@StringRes msgID:Int){

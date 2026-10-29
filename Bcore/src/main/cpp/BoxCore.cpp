@@ -132,31 +132,24 @@ bool disableResourceLoading(JNIEnv *env, jclass clazz) {
     return true;
 }
 
-void setDeviceSpoof(JNIEnv *env, jclass clazz,
-                    jstring manufacturer,
-                    jstring brand,
-                    jstring model,
-                    jstring device,
-                    jstring product,
-                    jstring fingerprint,
-                    jstring serial) {
-    const char *c_manufacturer = manufacturer ? env->GetStringUTFChars(manufacturer, JNI_FALSE) : nullptr;
-    const char *c_brand = brand ? env->GetStringUTFChars(brand, JNI_FALSE) : nullptr;
-    const char *c_model = model ? env->GetStringUTFChars(model, JNI_FALSE) : nullptr;
-    const char *c_device = device ? env->GetStringUTFChars(device, JNI_FALSE) : nullptr;
-    const char *c_product = product ? env->GetStringUTFChars(product, JNI_FALSE) : nullptr;
-    const char *c_fingerprint = fingerprint ? env->GetStringUTFChars(fingerprint, JNI_FALSE) : nullptr;
-    const char *c_serial = serial ? env->GetStringUTFChars(serial, JNI_FALSE) : nullptr;
-
-    setDeviceSpoofValues(c_manufacturer, c_brand, c_model, c_device, c_product, c_fingerprint, c_serial);
-
-    if (manufacturer) env->ReleaseStringUTFChars(manufacturer, c_manufacturer);
-    if (brand) env->ReleaseStringUTFChars(brand, c_brand);
-    if (model) env->ReleaseStringUTFChars(model, c_model);
-    if (device) env->ReleaseStringUTFChars(device, c_device);
-    if (product) env->ReleaseStringUTFChars(product, c_product);
-    if (fingerprint) env->ReleaseStringUTFChars(fingerprint, c_fingerprint);
-    if (serial) env->ReleaseStringUTFChars(serial, c_serial);
+void setPropOverrides(JNIEnv *env, jclass clazz, jobjectArray names, jobjectArray values) {
+    clearPropOverrides();
+    if (names == nullptr || values == nullptr) return;
+    jsize count = env->GetArrayLength(names);
+    if (env->GetArrayLength(values) < count) count = env->GetArrayLength(values);
+    for (jsize i = 0; i < count; i++) {
+        auto name = (jstring) env->GetObjectArrayElement(names, i);
+        auto value = (jstring) env->GetObjectArrayElement(values, i);
+        if (name != nullptr && value != nullptr) {
+            const char *c_name = env->GetStringUTFChars(name, JNI_FALSE);
+            const char *c_value = env->GetStringUTFChars(value, JNI_FALSE);
+            setPropOverride(c_name, c_value);
+            env->ReleaseStringUTFChars(name, c_name);
+            env->ReleaseStringUTFChars(value, c_value);
+        }
+        if (name != nullptr) env->DeleteLocalRef(name);
+        if (value != nullptr) env->DeleteLocalRef(value);
+    }
 }
 
 static JNINativeMethod gMethods[] = {
@@ -166,7 +159,7 @@ static JNINativeMethod gMethods[] = {
         {"addIORule",  "(Ljava/lang/String;Ljava/lang/String;)V", (void *) addIORule},
         {"enableIO",   "()V",                                     (void *) enableIO},
         {"init",       "(I)V",                                    (void *) init},
-        {"setDeviceSpoof", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", (void *) setDeviceSpoof},
+        {"setPropOverrides", "([Ljava/lang/String;[Ljava/lang/String;)V", (void *) setPropOverrides},
 };
 
 int registerNativeMethods(JNIEnv *env, const char *className,

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/folder_open" android:title="@string/folder_open" />
+    <item android:id="@+id/folder_rename" android:title="@string/folder_rename" />
+    <item android:id="@+id/folder_move_to_group" android:title="@string/clone_move_to_group" />
+    <item android:id="@+id/folder_dissolve" android:title="@string/folder_dissolve" />
+</menu>

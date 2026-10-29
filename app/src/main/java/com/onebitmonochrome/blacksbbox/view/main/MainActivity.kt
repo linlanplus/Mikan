@@ -7,46 +7,42 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
-import androidx.core.content.edit
-import androidx.viewpager2.widget.ViewPager2
 import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.input.input
 import top.niunaijun.blackbox.BlackBoxCore
 import com.onebitmonochrome.blacksbbox.R
 import com.onebitmonochrome.blacksbbox.app.App
 import com.onebitmonochrome.blacksbbox.app.AppFreezeManager
 import com.onebitmonochrome.blacksbbox.app.AppManager
 import com.onebitmonochrome.blacksbbox.databinding.ActivityMainBinding
+import com.onebitmonochrome.blacksbbox.databinding.ViewGroupTitleBinding
 import com.onebitmonochrome.blacksbbox.util.Resolution
 import com.onebitmonochrome.blacksbbox.util.inflate
 import com.onebitmonochrome.blacksbbox.util.toast
-import com.onebitmonochrome.blacksbbox.view.apps.AppsFragment
 import com.onebitmonochrome.blacksbbox.view.base.LoadingActivity
-import com.onebitmonochrome.blacksbbox.view.fake.FakeManagerActivity
-import com.onebitmonochrome.blacksbbox.view.gallery.BlackBoxGalleryActivity
+import com.onebitmonochrome.blacksbbox.view.home.HomeFragment
 import com.onebitmonochrome.blacksbbox.view.list.ListActivity
-import com.onebitmonochrome.blacksbbox.view.spoof.DeviceSpoofingActivity
 import com.onebitmonochrome.blacksbbox.view.setting.SettingActivity
 
 class MainActivity : LoadingActivity() {
 
     private val viewBinding: ActivityMainBinding by inflate()
 
-    private lateinit var mViewPagerAdapter: ViewPagerAdapter
+    private lateinit var homeFragment: HomeFragment
 
-    private val fragmentList = mutableListOf<AppsFragment>()
-
-    private var currentUser = 0
+    private var groupTitleBinding: ViewGroupTitleBinding? = null
 
     companion object {
         private const val TAG = "MainActivity"
         private const val STORAGE_PERMISSION_REQUEST_CODE = 1001
         private const val VPN_PERMISSION_REQUEST_CODE = 1002
+        private const val HOME_TAG = "home"
 
         fun start(context: Context) {
             val intent = Intent(context, MainActivity::class.java)
@@ -66,10 +62,10 @@ class MainActivity : LoadingActivity() {
 
             setContentView(viewBinding.root)
             initToolbar(viewBinding.toolbarLayout.toolbar, R.string.app_name)
-            initViewPager()
+            groupTitle()
+            initHome(savedInstanceState)
             initFab()
             initFreezeFab()
-            initToolbarSubTitle()
 
             
             checkStoragePermission()
@@ -293,90 +289,43 @@ class MainActivity : LoadingActivity() {
         }
     }
 
-    private fun initToolbarSubTitle() {
-        try {
-            updateUserRemark(currentUser)
-            
-            viewBinding.toolbarLayout.toolbar.getChildAt(1)?.setOnClickListener {
-                try {
-                    MaterialDialog(this).show {
-                        title(res = R.string.userRemark)
-                        input(
-                                hintRes = R.string.userRemark,
-                                prefill = viewBinding.toolbarLayout.toolbar.subtitle
-                        ) { _, input ->
-                            try {
-                                AppManager.mRemarkSharedPreferences.edit {
-                                    putString("Remark$currentUser", input.toString())
-                                    viewBinding.toolbarLayout.toolbar.subtitle = input
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error saving user remark: ${e.message}")
-                            }
-                        }
-                        positiveButton(res = R.string.done)
-                        negativeButton(res = R.string.cancel)
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error showing remark dialog: ${e.message}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in initToolbarSubTitle: ${e.message}")
-        }
+    /** Group switcher shown in place of the toolbar title; the home fragment fills it in. */
+    fun groupTitle(): ViewGroupTitleBinding {
+        groupTitleBinding?.let { return it }
+        val toolbar = viewBinding.toolbarLayout.toolbar
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+        val binding = ViewGroupTitleBinding.inflate(layoutInflater, toolbar, false)
+        toolbar.addView(
+                binding.root,
+                Toolbar.LayoutParams(Toolbar.LayoutParams.WRAP_CONTENT, Toolbar.LayoutParams.MATCH_PARENT, Gravity.START)
+        )
+        groupTitleBinding = binding
+        return binding
     }
 
-    private fun initViewPager() {
-        try {
-            val userList = BlackBoxCore.get().users
-            userList.forEach { fragmentList.add(AppsFragment.newInstance(it.id)) }
-
-            currentUser = userList.firstOrNull()?.id ?: 0
-            fragmentList.add(AppsFragment.newInstance(userList.size))
-
-            mViewPagerAdapter = ViewPagerAdapter(this)
-            mViewPagerAdapter.replaceData(fragmentList)
-            viewBinding.viewPager.adapter = mViewPagerAdapter
-            viewBinding.viewPager.offscreenPageLimit = 1
-            viewBinding.viewPager.setPageTransformer { page, position ->
-                val absPos = kotlin.math.abs(position)
-                val scale = 0.94f + ((1f - absPos.coerceAtMost(1f)) * 0.06f)
-                page.scaleX = scale
-                page.scaleY = scale
-                page.alpha = 0.75f + ((1f - absPos.coerceAtMost(1f)) * 0.25f)
-                page.translationX = -position * 22f
-            }
-            viewBinding.dotsIndicator.setViewPager2(viewBinding.viewPager)
-            viewBinding.viewPager.registerOnPageChangeCallback(
-                    object : ViewPager2.OnPageChangeCallback() {
-                        override fun onPageSelected(position: Int) {
-                            try {
-                                super.onPageSelected(position)
-                                currentUser = if (position in userList.indices) {
-                                    userList[position].id
-                                } else {
-                                    fragmentList[position].userID
-                                }
-                                updateUserRemark(currentUser)
-                                showFloatButton(true)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error in onPageSelected: ${e.message}")
-                            }
-                        }
-                    }
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in initViewPager: ${e.message}")
+    private fun initHome(savedInstanceState: Bundle?) {
+        val existing = supportFragmentManager.findFragmentByTag(HOME_TAG) as? HomeFragment
+        if (existing != null) {
+            homeFragment = existing
+            return
         }
+        homeFragment = HomeFragment()
+        supportFragmentManager.beginTransaction()
+                .replace(R.id.home_container, homeFragment, HOME_TAG)
+                .commitNow()
     }
 
     private fun initFab() {
         try {
-            viewBinding.fab.setOnClickListener {
+            viewBinding.fab.setOnClickListener { fab ->
+                fab.animate().scaleX(0.88f).scaleY(0.88f).setDuration(80).withEndAction {
+                    fab.animate().scaleX(1f).scaleY(1f).setDuration(240)
+                            .setInterpolator(android.view.animation.OvershootInterpolator(3f)).start()
+                }.start()
                 try {
-                    val userId = currentUser
+                    // Every clone gets a fresh engine user, so nothing in the list counts as installed.
                     val intent = Intent(this, ListActivity::class.java)
-                    intent.putExtra("userID", userId)
+                    intent.putExtra("userID", -1)
                     apkPathResult.launch(intent)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error launching ListActivity: ${e.message}")
@@ -470,53 +419,11 @@ class MainActivity : LoadingActivity() {
         }
     }
 
-    fun scanUser() {
-        try {
-            val userList = BlackBoxCore.get().users
-
-            if (fragmentList.size == userList.size) {
-                fragmentList.add(AppsFragment.newInstance(fragmentList.size))
-            } else if (fragmentList.size > userList.size + 1) {
-                fragmentList.removeLast()
-            }
-
-            mViewPagerAdapter.notifyDataSetChanged()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in scanUser: ${e.message}")
-        }
-    }
-
-    private fun updateUserRemark(userId: Int) {
-        try {
-            var remark =
-                    AppManager.mRemarkSharedPreferences.getString("Remark$userId", "User $userId")
-            if (remark.isNullOrEmpty()) {
-                remark = "User $userId"
-            }
-
-            viewBinding.toolbarLayout.toolbar.subtitle = remark
-        } catch (e: Exception) {
-            Log.e(TAG, "Error updating user remark: ${e.message}")
-            viewBinding.toolbarLayout.toolbar.subtitle = "User $userId"
-        }
-    }
-
     private val apkPathResult =
             registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
                 try {
                     if (it.resultCode == RESULT_OK) {
-                        it.data?.let { data ->
-                            val userId = data.getIntExtra("userID", 0)
-                            val source = data.getStringExtra("source")
-                            if (source != null) {
-                                val targetFragment = fragmentList.firstOrNull { f -> f.userID == userId }
-                                if (targetFragment != null) {
-                                    targetFragment.installApk(source)
-                                } else {
-                                    Log.w(TAG, "No fragment found for userId=$userId; dropping install result")
-                                }
-                            }
-                        }
+                        it.data?.getStringExtra("source")?.let { source -> homeFragment.install(source) }
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error handling APK path result: ${e.message}")
@@ -538,18 +445,6 @@ class MainActivity : LoadingActivity() {
             when (item.itemId) {
                 R.id.main_setting -> {
                     SettingActivity.start(this)
-                }
-                R.id.fake_location -> {
-                    
-                    val intent = Intent(this, FakeManagerActivity::class.java)
-                    intent.putExtra("userID", currentUser)
-                    startActivity(intent)
-                }
-                R.id.device_spoofing -> {
-                    DeviceSpoofingActivity.start(this, currentUser)
-                }
-                R.id.blackbox_gallery -> {
-                    BlackBoxGalleryActivity.start(this, currentUser)
                 }
             }
 

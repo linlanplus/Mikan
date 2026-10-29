@@ -37,9 +37,36 @@
                     android:textSize="14sp" />
 
             <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="18dp"
+                    android:hint="@string/device_spoofing_preset">
+
+                <AutoCompleteTextView
+                        android:id="@+id/device_preset_dropdown"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="none" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:hint="@string/device_spoofing_market_name">
+
+                <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/device_market_name_edit"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textCapWords" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
                     android:hint="@string/device_spoofing_manufacturer">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -95,12 +122,12 @@
                     android:textAllCaps="false" />
 
             <com.google.android.material.button.MaterialButton
-                    android:id="@+id/samsung_preset_button"
+                    android:id="@+id/random_device_button"
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:text="@string/device_spoofing_samsung_preset"
+                    android:text="@string/device_spoofing_random"
                     android:textAllCaps="false" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

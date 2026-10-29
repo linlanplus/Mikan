@@ -6,8 +6,8 @@ import com.onebitmonochrome.blacksbbox.app.App
 
 fun getString(@StringRes id:Int,vararg arg:String):String{
     if(arg.isEmpty()){
-        return App.getContext().getString(id)
+        return LanguageManager.localized(App.getContext()).getString(id)
     }
-    return App.getContext().getString(id,*arg)
+    return LanguageManager.localized(App.getContext()).getString(id,*arg)
 }
 

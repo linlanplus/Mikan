@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.lifecycle.MutableLiveData
 import java.io.File
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.entity.pm.InstallResult
 import top.niunaijun.blackbox.utils.AbiUtils
 import com.onebitmonochrome.blacksbbox.R
 import com.onebitmonochrome.blacksbbox.app.AppManager
@@ -21,7 +22,7 @@ class AppsRepository {
     private var mInstalledList = mutableListOf<AppInfo>()
 
     
-    private fun safeLoadAppLabel(applicationInfo: ApplicationInfo): String {
+    fun safeLoadAppLabel(applicationInfo: ApplicationInfo): String {
         return try {
             BlackBoxCore.getPackageManager().getApplicationLabel(applicationInfo).toString()
         } catch (e: Exception) {
@@ -31,7 +32,7 @@ class AppsRepository {
     }
 
     
-    private fun safeLoadAppIcon(
+    fun safeLoadAppIcon(
             applicationInfo: ApplicationInfo
     ): android.graphics.drawable.Drawable? {
         return try {
@@ -139,11 +140,9 @@ class AppsRepository {
         try {
             loadingLiveData.postValue(true)
             synchronized(mInstalledList) {
-                // The startup preload returns nothing if the ROM's "read app list" permission
-                // was not granted yet; reload here so granting it later works without a restart.
-                if (mInstalledList.isEmpty()) {
-                    previewInstallList()
-                }
+                // Reload every time the list is opened: the startup preload misses apps installed
+                // later, and returns nothing if the ROM's "read app list" permission was not granted yet.
+                previewInstallList()
                 val blackBoxCore = BlackBoxCore.get()
                 Log.d(TAG, mInstalledList.joinToString(","))
                 val newInstalledList =
@@ -362,7 +361,7 @@ class AppsRepository {
         }
     }
 
-    fun installApk(source: String, userId: Int, resultLiveData: MutableLiveData<String>) {
+    fun installApk(source: String, userId: Int, resultLiveData: MutableLiveData<String>): InstallResult? {
         try {
             val normalizedSource = normalizeApkSource(source)
             val parsedUri = runCatching { Uri.parse(normalizedSource) }.getOrNull()
@@ -406,7 +405,7 @@ class AppsRepository {
                                 resultLiveData.postValue(
                                         "Cannot install BlackBox app from within BlackBox. This would create infinite recursion and is not allowed for security reasons."
                                 )
-                                return
+                                return null
                             }
                         }
                     }
@@ -440,9 +439,11 @@ class AppsRepository {
                 resultLiveData.postValue(getString(R.string.install_fail, installResult.msg))
             }
             scanUser()
+            return installResult
         } catch (e: Exception) {
             Log.e(TAG, "Error installing APK: ${e.message}")
             resultLiveData.postValue("Installation failed: ${e.message}")
+            return null
         }
     }
 

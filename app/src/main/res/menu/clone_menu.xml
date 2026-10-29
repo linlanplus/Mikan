@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/clone_rename" android:title="@string/clone_rename" />
+    <item android:id="@+id/clone_device" android:title="@string/clone_device" />
+    <item android:id="@+id/clone_location" android:title="@string/fake_location" />
+    <item android:id="@+id/clone_move_to_folder" android:title="@string/clone_move_to_folder" />
+    <item android:id="@+id/clone_move_out" android:title="@string/clone_move_out" />
+    <item android:id="@+id/clone_move_to_group" android:title="@string/clone_move_to_group" />
+    <item android:id="@+id/app_shortcut" android:title="@string/app_shortcut" />
+    <item android:id="@+id/app_stop" android:title="@string/app_stop" />
+    <item android:id="@+id/app_clear" android:title="@string/app_clear" />
+    <item android:id="@+id/app_freeze_options" android:title="@string/app_freeze_options" />
+    <item android:id="@+id/app_shealth_login_fallback" android:title="@string/shealth_login_fallback_enable" />
+    <item android:id="@+id/clone_gallery" android:title="@string/blackbox_gallery_menu" />
+    <item android:id="@+id/app_remove" android:title="@string/clone_delete" />
+</menu>
