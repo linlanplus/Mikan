@@ -726,28 +726,6 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
-    @ProxyMethod("getComponentEnabledSetting")
-    public static class getComponentEnabledSetting extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            ComponentName componentName = (ComponentName) args[0];
-            String packageName = componentName.getPackageName();
-            ApplicationInfo applicationInfo = BlackBoxCore.getBPackageManager().getApplicationInfo(packageName,0, BActivityThread.getUserId());
-
-
-
-
-
-            if(applicationInfo != null){
-                return PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
-            }
-            if (AppSystemEnv.isOpenPackage(componentName)) {
-                return method.invoke(who, args);
-            }
-            throw new IllegalArgumentException();
-        }
-    }
-
 
 
 

@@ -70,6 +70,22 @@ android {
 }
 
 
+// On Windows, aidl writes source paths into comments of the generated Java files.
+// A path segment like "\user\" is then read by javac as an illegal \u escape.
+tasks.withType(com.android.build.gradle.tasks.AidlCompile).configureEach { task ->
+    task.doLast {
+        fileTree(task.sourceOutputDir.get().asFile).matching { include '**/*.java' }.each { f ->
+            def text = f.getText('UTF-8')
+            def fixed = text.readLines().collect { line ->
+                line.trim().startsWith('*') ? line.replace('\\', '/') : line
+            }.join('\n') + '\n'
+            if (fixed != text) {
+                f.write(fixed, 'UTF-8')
+            }
+        }
+    }
+}
+
 tasks.withType(Javadoc) {
     options.addStringOption('Xdoclint:none', '-quiet')
     options.addStringOption('encoding', 'UTF-8')
