@@ -13,6 +13,7 @@ import java.util.List;
 
 import black.android.app.BRNotificationManager;
 import black.android.content.pm.BRParceledListSlice;
+import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.fake.frameworks.BNotificationManager;
 import top.niunaijun.blackbox.fake.hook.BinderInvocationStub;
@@ -20,6 +21,7 @@ import top.niunaijun.blackbox.fake.hook.MethodHook;
 import top.niunaijun.blackbox.fake.hook.ProxyMethod;
 import top.niunaijun.blackbox.utils.MethodParameterUtils;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
+import top.niunaijun.blackbox.utils.compat.ContextCompat;
 import top.niunaijun.blackbox.utils.compat.ParceledListSliceCompat;
 
 
@@ -45,6 +47,15 @@ public class INotificationManagerProxy extends BinderInvocationStub {
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 
         MethodParameterUtils.replaceAllAppPkg(args);
+        // Android 14+ passes AttributionSource (e.g. canUseFullScreenIntent); the system rejects
+        // the guest package because it is not owned by the host uid.
+        if (args != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            for (Object arg : args) {
+                if (arg instanceof android.content.AttributionSource) {
+                    ContextCompat.fixAttributionSourceState(arg, BlackBoxCore.getHostPkg(), BlackBoxCore.getHostUid());
+                }
+            }
+        }
         return super.invoke(proxy, method, args);
     }
 
