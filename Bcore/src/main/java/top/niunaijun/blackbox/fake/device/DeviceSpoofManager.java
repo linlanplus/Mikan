@@ -111,9 +111,11 @@ public final class DeviceSpoofManager {
 
     /**
      * Saves values edited by hand. Brand and codename come from a matching preset when the
-     * manufacturer and model are one, otherwise they are derived from the names.
+     * manufacturer and model are one, otherwise they are derived from the names. [serial] is the
+     * one shown on screen (a new one after "random device"); an invalid one keeps the saved serial.
      */
-    public static void saveUserProfile(int userId, String marketName, String manufacturer, String model, String androidId) {
+    public static void saveUserProfile(int userId, String marketName, String manufacturer, String model,
+                                       String serial, String androidId) {
         DeviceSpoofProfile current = getProfile(userId);
         String safeManufacturer = manufacturer.trim();
         String safeModel = model.trim();
@@ -130,6 +132,7 @@ public final class DeviceSpoofManager {
         }
         String safeMarketName = TextUtils.isEmpty(marketName) ? safeModel : marketName.trim();
         String safeAndroidId = isValidAndroidId(androidId) ? androidId.trim().toLowerCase(Locale.US) : current.androidId;
+        String safeSerial = isValidSerial(serial) ? serial.trim() : current.serial;
         prefs().edit()
                 .putString(KEY_MANUFACTURER + userId, safeManufacturer)
                 .putString(KEY_BRAND + userId, brand)
@@ -137,7 +140,7 @@ public final class DeviceSpoofManager {
                 .putString(KEY_DEVICE + userId, device)
                 .putString(KEY_PRODUCT + userId, product)
                 .putString(KEY_MARKET_NAME + userId, safeMarketName)
-                .putString(KEY_SERIAL + userId, current.serial)
+                .putString(KEY_SERIAL + userId, safeSerial)
                 .putString(KEY_ANDROID_ID + userId, safeAndroidId)
                 .commit();
     }
@@ -209,6 +212,10 @@ public final class DeviceSpoofManager {
             return getProfile(currentUserId()).marketName;
         }
         return null;
+    }
+
+    private static boolean isValidSerial(String value) {
+        return value != null && value.trim().matches("[A-Za-z0-9]{6,20}");
     }
 
     public static boolean isValidAndroidId(String value) {

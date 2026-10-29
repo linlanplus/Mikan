@@ -59,7 +59,8 @@ class DeviceSpoofingActivity : BaseActivity() {
                 return@setOnClickListener
             }
 
-            DeviceSpoofManager.saveUserProfile(currentUserID(), marketName, manufacturer, model, androidId)
+            // The serial has no field; it comes from what is shown (a new one after "random device").
+            DeviceSpoofManager.saveUserProfile(currentUserID(), marketName, manufacturer, model, shownProfile.serial, androidId)
             bindCurrentProfile()
             toast(R.string.device_spoofing_saved)
         }
