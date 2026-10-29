@@ -14,6 +14,7 @@ import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreferenceCompat
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.utils.FileLog
 import com.onebitmonochrome.blacksbbox.R
 import com.onebitmonochrome.blacksbbox.app.AppFreezeManager
 import com.onebitmonochrome.blacksbbox.app.AppManager
@@ -340,9 +341,20 @@ class SettingFragment : PreferenceFragmentCompat() {
             val header = buildString {
                 append("Caption: Manual Log Share from Settings\n\n")
                 append(getDeviceInfoString())
-                append("\n\n--- LOGCAT ---\n")
+                append("\n")
             }
             fos.write(header.toByteArray(StandardCharsets.UTF_8))
+
+            // Engine logs mirrored to files by FileLog; logcat alone loses them on ROMs
+            // that filter app logs below ERROR.
+            val engineLogs = FileLog.getLogDir(context).listFiles()
+                ?.sortedWith(compareBy({ it.name.removeSuffix(".old") }, { !it.name.endsWith(".old") }))
+                .orEmpty()
+            for (logFile in engineLogs) {
+                fos.write("\n--- ENGINE LOG: ${logFile.name} ---\n".toByteArray(StandardCharsets.UTF_8))
+                logFile.inputStream().use { it.copyTo(fos) }
+            }
+            fos.write("\n--- LOGCAT (system) ---\n".toByteArray(StandardCharsets.UTF_8))
 
             val process = Runtime.getRuntime().exec("logcat -d -v threadtime")
             process.inputStream.use { input ->

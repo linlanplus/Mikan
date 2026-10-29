@@ -834,6 +834,7 @@ public class BlackBoxCore extends ClientConfiguration {
     public void doAttachBaseContext(Context context,
                                    ClientConfiguration clientConfiguration) {
         sContext = context;
+        top.niunaijun.blackbox.utils.FileLog.init(context);
         mClientConfiguration = clientConfiguration;
 
         final String processName = getProcessName(context);
@@ -1312,7 +1313,6 @@ public class BlackBoxCore extends ClientConfiguration {
                     if (uri != null) {
                         try (java.io.OutputStream out = context.getContentResolver().openOutputStream(uri)) {
                             
-                            ShellUtils.execCommand("logcat -c", false);
                             java.lang.Process process = Runtime.getRuntime().exec("logcat");
                             try (java.io.InputStream in = process.getInputStream()) {
                                 byte[] buffer = new byte[4096];
@@ -1331,7 +1331,6 @@ public class BlackBoxCore extends ClientConfiguration {
                     }
                     logFile = new File(docuentsdir, fileName);
                     BzFileUtils.deleteDir(logFile);
-                    ShellUtils.execCommand("logcat -c", false);
                     ShellUtils.execCommand("logcat -f " + logFile.getAbsolutePath(), false);
                 }
             } catch (Exception e) {
