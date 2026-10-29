@@ -70,10 +70,6 @@ Release signing: create a properties file with `storeFile`, `storePassword`, `ke
 
 本版本作者：Claude Code (Opus 5.5)、Codex (GPT-6 Astra)、LinLan
 
-图标角色由 zipzippipe 设计。
-
-The app icon character was designed by zipzippipe.
-
 ## 致谢 · Credits
 
 小橘分身基于以下开源项目：
@@ -96,4 +92,4 @@ Mikan is built on these open source projects:
 
 [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for what was changed, and [THIRD_PARTY_NOTICES.txt](app/src/main/assets/THIRD_PARTY_NOTICES.txt) for the licenses of third-party code.
 
-版权及 bug 反馈 · Copyright and bug reports: support@lqstudio.uk
+版权问题与bug反馈 · Copyright and bug reports: support@lqstudio.uk
