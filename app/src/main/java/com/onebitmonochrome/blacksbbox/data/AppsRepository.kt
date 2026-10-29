@@ -139,6 +139,11 @@ class AppsRepository {
         try {
             loadingLiveData.postValue(true)
             synchronized(mInstalledList) {
+                // The startup preload returns nothing if the ROM's "read app list" permission
+                // was not granted yet; reload here so granting it later works without a restart.
+                if (mInstalledList.isEmpty()) {
+                    previewInstallList()
+                }
                 val blackBoxCore = BlackBoxCore.get()
                 Log.d(TAG, mInstalledList.joinToString(","))
                 val newInstalledList =
