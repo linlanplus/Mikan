@@ -961,7 +961,22 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         }
     }
 
-    
+    // Android 15+ Context.checkPermission goes through checkPermissionForDevice(perm, pid, uid, deviceId).
+    // Unhooked, the guest's virtual uid reaches the system and every permission (including INTERNET,
+    // which WebView checks to decide blockNetworkLoads) is denied. The last int is deviceId, so
+    // fix the uid argument by position, not via replaceLastUid.
+    @ProxyMethod("checkPermissionForDevice")
+    public static class CheckPermissionForDevice extends checkPermission {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (args != null && args.length >= 3 && args[2] instanceof Integer
+                    && (int) args[2] == BlackBoxCore.getBUid()) {
+                args[2] = BlackBoxCore.getHostUid();
+            }
+            return super.hook(who, method, args);
+        }
+    }
+
     private static boolean isAudioPermission(String permission) {
         if (permission == null) return false;
         return permission.equals(Manifest.permission.RECORD_AUDIO)
