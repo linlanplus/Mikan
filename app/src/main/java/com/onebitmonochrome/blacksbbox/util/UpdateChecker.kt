@@ -16,7 +16,7 @@ import java.net.URL
 
 /** Checks GitHub Releases of this project for a newer version. */
 object UpdateChecker {
-    const val REPO = "1319394233a-ops/Mikan"
+    const val REPO = "linlanplus/Mikan"
     const val REPO_URL = "https://github.com/$REPO"
     private const val RELEASES_URL = "$REPO_URL/releases"
     private const val API_URL = "https://api.github.com/repos/$REPO/releases?per_page=10"

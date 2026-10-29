@@ -27,12 +27,12 @@ An ad-free Android app cloner with no limit on the number of clones. No root nee
 
 ## 下载 · Download
 
-从 [Releases](https://github.com/1319394233a-ops/Mikan/releases) 下载：
+从 [Releases](https://github.com/linlanplus/Mikan/releases) 下载：
 
 - `arm64-v8a`：近几年的手机都选这个
 - `armeabi-v7a`：较老的 32 位手机
 
-Download from [Releases](https://github.com/1319394233a-ops/Mikan/releases): `arm64-v8a` for most phones from recent years, `armeabi-v7a` for older 32-bit phones.
+Download from [Releases](https://github.com/linlanplus/Mikan/releases): `arm64-v8a` for most phones from recent years, `armeabi-v7a` for older 32-bit phones.
 
 ## 已知问题 · Known issues
 
