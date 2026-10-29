@@ -26,6 +26,7 @@ import com.onebitmonochrome.blacksbbox.util.Resolution
 import com.onebitmonochrome.blacksbbox.util.inflate
 import com.onebitmonochrome.blacksbbox.util.toast
 import com.onebitmonochrome.blacksbbox.view.base.LoadingActivity
+import com.onebitmonochrome.blacksbbox.util.UpdateChecker
 import com.onebitmonochrome.blacksbbox.view.home.HomeFragment
 import com.onebitmonochrome.blacksbbox.view.list.ListActivity
 import com.onebitmonochrome.blacksbbox.view.setting.SettingActivity
@@ -72,6 +73,8 @@ class MainActivity : LoadingActivity() {
 
             
             checkVpnPermission()
+
+            if (savedInstanceState == null) UpdateChecker.checkQuietly(this)
 
             try {
                 BlackBoxCore.get().onAfterMainActivityOnCreate(this)

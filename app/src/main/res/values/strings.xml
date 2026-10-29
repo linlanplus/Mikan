@@ -227,7 +227,6 @@
     <string name="about_upstream_sheet_hint">This app is built on the projects below. Tap one to open its source.</string>
     <string name="check_update">Check for updates</string>
     <string name="check_update_summary">Current version %s</string>
-    <string name="check_update_not_ready">Current version %s.\n\nThe update service is not online yet. Once the app is published, new versions will be announced here.</string>
     <string name="footer_contact">Copyright and bug reports: support@lqstudio.uk</string>
     <string-array name="theme_entries">
         <item>@string/theme_system</item>
@@ -253,4 +252,18 @@
         <item>zh</item>
         <item>en</item>
     </string-array>
+    <string name="check_update_checking">Checking for updates…</string>
+    <string name="check_update_latest">You have the latest version (%s).</string>
+    <string name="check_update_new_title">New version %s</string>
+    <string name="check_update_no_notes">A new version is available.</string>
+    <string name="check_update_download">Download</string>
+    <string name="check_update_later">Later</string>
+    <string name="check_update_failed">Could not reach GitHub. Check your network and try again, or open the release page in a browser.</string>
+    <string name="check_update_open_page">Open release page</string>
+    <string name="about_this_project_title">This project</string>
+    <string name="about_source_title">Mikan source code</string>
+    <string name="about_source_summary">Open source under the Apache License 2.0 · GitHub</string>
+    <string name="about_licenses_title">Open source licenses</string>
+    <string name="about_licenses_summary">Licenses of the third-party code in this app</string>
+    <string name="about_licenses_header">Mikan is licensed under the Apache License 2.0. It also contains:</string>
 </resources>

@@ -42,6 +42,11 @@ inspiration/
 *.md
 !README.md
 
+# Signing keys and their passwords
+*.jks
+*.keystore
+keystore.properties
+
 # Local test artifacts / personal files
 BlacksBlackBox.png
 

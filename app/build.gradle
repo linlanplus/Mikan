@@ -3,6 +3,15 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.android)
 }
 
+// Release signing is read from a properties file kept outside the repository (storeFile,
+// storePassword, keyAlias, keyPassword). Point the Gradle property mikan.keystore at it, e.g. in
+// ~/.gradle/gradle.properties. Without it, release builds fall back to the debug key.
+def keystorePropsFile = file(findProperty("mikan.keystore") ?: rootProject.file("keystore.properties"))
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
 android {
 
     namespace 'com.onebitmonochrome.blacksbbox'
@@ -28,9 +37,20 @@ android {
         }
     }
 
+    signingConfigs {
+        if (keystoreProps.getProperty("storeFile")) {
+            release {
+                storeFile file(keystoreProps.getProperty("storeFile"))
+                storePassword keystoreProps.getProperty("storePassword")
+                keyAlias keystoreProps.getProperty("keyAlias")
+                keyPassword keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            signingConfig keystoreProps.getProperty("storeFile") ? signingConfigs.release : signingConfigs.debug
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

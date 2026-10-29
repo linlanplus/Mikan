@@ -201,8 +201,21 @@
     <string name="about_upstream_sheet_hint">本应用基于以下开源项目，点击可打开源码。</string>
     <string name="check_update">检查更新</string>
     <string name="check_update_summary">当前版本 %s</string>
-    <string name="check_update_not_ready">当前版本 %s。\n\n更新服务还没上线，正式发布后，新版本会在这里提示。</string>
     <string name="footer_contact">版权及bug反馈：support@lqstudio.uk</string>
     <string name="language">语言</string>
     <string name="language_system">跟随系统</string>
+    <string name="check_update_checking">正在检查更新…</string>
+    <string name="check_update_latest">已是最新版本（%s）</string>
+    <string name="check_update_new_title">发现新版本 %s</string>
+    <string name="check_update_no_notes">有新版本可以下载。</string>
+    <string name="check_update_download">下载</string>
+    <string name="check_update_later">以后再说</string>
+    <string name="check_update_failed">连接不上 GitHub。请检查网络后重试，或者用浏览器打开发布页。</string>
+    <string name="check_update_open_page">打开发布页</string>
+    <string name="about_this_project_title">本项目</string>
+    <string name="about_source_title">小橘分身源码</string>
+    <string name="about_source_summary">基于 Apache License 2.0 开源 · GitHub</string>
+    <string name="about_licenses_title">开源许可</string>
+    <string name="about_licenses_summary">本应用包含的第三方代码及其许可</string>
+    <string name="about_licenses_header">小橘分身以 Apache License 2.0 开源，并包含以下第三方代码：</string>
 </resources>

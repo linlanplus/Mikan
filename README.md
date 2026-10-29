@@ -1,113 +1,99 @@
-# Blacks BlackBox - [▣] ᚠᛟᚱᚲ
+# 小橘分身 · Mikan
 
-Android app virtualization fork focused on modern Android compatibility and practical validation workflows.
+无广告、不限数量的安卓应用多开工具。不需要 root。
 
-**In short**: Android 14+ support, Android 16 network/compat hardening, QoL improvements, and slight privacy hardening!
+An ad-free Android app cloner with no limit on the number of clones. No root needed.
 
+> 当前是 **0.9 测试版**，还在打磨中，遇到问题欢迎反馈。
+> This is the **0.9 test release**. Bug reports are welcome.
 
-## Why this fork? + Scope
+## 功能 · Features
 
-I made this fork to make the apps I actually care about usable in a virtualized setup.
+- **不限数量的分身：** 同一个应用可以开 3 个、5 个甚至更多。每个分身的数据和登录状态互相独立。
+- **每个分身一台"不同的手机"：** 自动给每个分身分配不同的机型、设备名、Android ID 和序列号，也可以手动修改，内置 25 款常见机型。
+- **用户和文件夹：** 按"用户"分组管理分身，用文件夹整理，和桌面一样长按拖动。
+- **重命名：** 给分身改显示名称，不影响应用本身。
+- **虚拟定位、分身相册、快捷方式、冻结：** 继承自上游项目。
+- **主题和语言：** 跟随系统 / 浅色 / 深色，简体中文 / English。
 
-- Priority target: BlackBox working in Work Profile + Instagram support
-
-- Not everything works yet (and it might never fully do). This fork is deliberately focused on apps I use.
-
-- I *might* take requests if an app is genuinely needed.
-- No game support for now (it’s a whole different level of work).
-
-
-## Changes vs BlackBox & NewBlackbox
-
-- Work profiles now work 100% in my validation path
-
-- Work-profile-aware smoke tooling available (see smoke_install_launch.sh) that targets the correct Android user/profile and produces logs + screenshots.
-- This was necessary because the old workflow was painful: install host → install target inside → debug one issue → repeat... (Super Annoying)
-
-- Android 14+/16 compatibility hardening via additional/updated system-service hooks (e.g. Credential Manager, IME/InputMethodManager, telephony registry)
-
-- Privacy-first behavior tightened in PackageManager surfaces, with an explicit opt-in compatibility fallback toggle (`host_signing_fallback`)
-
-## Changelog
-### 10.05.26 - 4.71 Update: .apks support and gallery reworked and updated slightly
-
-#### Gallery . ݁₊ ⊹ . ݁˖ . ݁
-Gallery preview now exposes a ```Share to app``` sheet inside Black's B-Box. Images and videos are shared as URIs, and the selected app is started with temporary read permission when it supports the content type.
-
-#### APKS / Split APK install
-Added support for installing `.apks` bundles inside Black's B-Box.
-
-If you have a split APK bundle, rename it to `.apks` and install it from inside Black's B-Box through the normal import flow.
-### 30.03.26 - 4.6 Update: Freezing, Device Spoofing, and Media Sharing
-
-#### Gallery . ݁₊ ⊹ . ݁˖ . ݁
-Added a ```Send to BlackBox Gallery``` share target that lets users send photos and videos from the phone’s gallery into the virtualized B-Box.
-
-Also includes a barebones gallery app inside Black's B-Box. It even plays videos!
-Barebones, but it works!
-
-#### Freeze ₊˚｡⋆❆⋆｡˚₊
-
-Added a freezer button that lets you instantly freeze and kill a running app.
-
-Ending Instagram doomscrolling with a single click. It is satisfying to do to be honest.
->Settings -> ```Freeze App instantly```
-
-Also added an auto-freeze feature that can automatically freeze apps when you leave BlackBox.
->Main view -> Snowflake button
-
-Lastly you can choose per app whether it should be excluded from auto-freeze, so selected apps stay running while everything else is frozen automatically. A bit janky, but it works.
-
->Enable auto-freeze -> Long-press app in Black’s B-Box -> ```Freeze Options```
-
-#### 𝔻𝕖𝕧𝕚𝕔𝕖 𝕊𝕡𝕠𝕠𝕗𝕚𝕟𝕘
-
-Added device spoofing, so apps inside BlackBox can see a custom device model, manufacturer, and Android ID.
->Main view -> More options menu -> ```Device Spoofing```
 ---
-#### 
-### 27.03.26
-Brave Browser now runs inside Black’s B-Box on Android 16 (launches successfully and reaches the home/new-tab screen).
 
-## Current status
+- **Unlimited clones:** run three, five or more copies of the same app, each with its own data and login.
+- **A different phone per clone:** every clone gets its own model, device name, Android ID and serial number automatically. You can also pick one of 25 built-in phone models or edit them by hand.
+- **Users and folders:** group clones into "users" and organise them in folders with launcher-style drag and drop.
+- **Rename:** change the name a clone is shown with, without touching the app itself.
+- **Fake location, gallery, shortcuts, freezing:** inherited from the upstream project.
+- **Theme and language:** system / light / dark, 简体中文 / English.
 
-- Builds successfully with `:app:assembleDebug`
-- Targets physical ARM64 devices as the primary test path
-- Smoke install+launch flow validated for main + work profiles
-- VPN mode intentionally disabled on Android 14+ until full forwarding is implemented, it was simply not working
+## 下载 · Download
 
+从 [Releases](https://github.com/1319394233a-ops/Mikan/releases) 下载：
 
-## Project goals (maybe)
+- `arm64-v8a`：近几年的手机都选这个
+- `armeabi-v7a`：较老的 32 位手机
 
-- Improve Android 14+/16 app compatibility (system-service enforcement + crash fixes)
-- Keep validation practical: smoke install/launch runs that produce logs + screenshots
-- Support both main profile and work profiles (multi-user aware)
-- Prefer privacy-first defaults, with explicit opt-in compatibility fallbacks when needed
+Download from [Releases](https://github.com/1319394233a-ops/Mikan/releases): `arm64-v8a` for most phones from recent years, `armeabi-v7a` for older 32-bit phones.
 
+## 已知问题 · Known issues
 
-## Quick start
+- Telegram 的后台保活任务可能报错。
+- 繁体中文翻译不完整。
+- 部分应用会检测多开环境，可能无法在分身里正常使用。
+
+---
+
+- Telegram's background keep-alive job can fail.
+- The Traditional Chinese translation is incomplete.
+- Some apps detect app cloning and may not work inside a clone.
+
+## 使用须知 · Notice
+
+本项目仅供学习和个人合法使用。请遵守你所在地区的法律以及各应用的用户协议，不要用于欺诈、刷量或其他违规用途。
+
+This project is for learning and lawful personal use. Follow the law where you live and the terms of the apps you use. Do not use it for fraud, fake engagement or other abuse.
+
+## 编译 · Building
+
+需要 JDK 21、Android SDK 和 NDK 29。路径里不能有空格，否则 ndk-build 会失败。
+
+Requires JDK 21, the Android SDK and NDK 29. The project path must not contain spaces, or ndk-build fails.
 
 ```bash
-./gradlew :app:assembleDebug
-
-bash tools/smoke_install_launch.sh \
-  --serial YOUR_DEVICE_SERIAL \
-  --android-user-id 0 \
-  --user-id 0 \
-  --package-name com.instagram.android \
-  --minutes 1 \
-  /path/to/APK.apk
+./gradlew assembleDebug
 ```
 
-## Credits
+正式签名：创建一个 properties 文件（包含 `storeFile`、`storePassword`、`keyAlias`、`keyPassword`），在 `~/.gradle/gradle.properties` 里用 `mikan.keystore=<文件路径>` 指向它。没有它时，release 版本使用调试签名。
 
-- Black00Z - Blacks BlackBox
-- ALEX5402 - NewBlackbox
-- asLody - VirtualApp
-- didi - VirtualAPK
-- jmpews - Dobby
-- hexhacking - xDL
-- CodingGay - BlackReflection
-- tiann - FreeReflection
+Release signing: create a properties file with `storeFile`, `storePassword`, `keyAlias` and `keyPassword`, and point `mikan.keystore=<path>` in `~/.gradle/gradle.properties` at it. Without it, release builds use the debug key.
 
-Made with (a lot of) Legacy Code and AI.
+## 作者 · Authors
+
+本版本作者：Claude Code (Opus 5.5)、Codex (GPT-6 Astra)、LinLan
+
+图标角色由 zipzippipe 设计。
+
+The app icon character was designed by zipzippipe.
+
+## 致谢 · Credits
+
+小橘分身基于以下开源项目：
+
+Mikan is built on these open source projects:
+
+- [Black's BlackBox](https://github.com/Black00Z/Blacks-BlackBox) by Black00Z: the direct base of this project
+- [NewBlackbox](https://github.com/ALEX5402/NewBlackbox) by ALEX5402
+- [BlackBox](https://github.com/FBlackBox/BlackBox)
+- [VirtualApp](https://github.com/asLody/VirtualApp) by asLody
+- [VirtualAPK](https://github.com/didi/VirtualAPK) by didi
+- [Dobby](https://github.com/jmpews/Dobby) by jmpews
+- [xDL](https://github.com/hexhacking/xDL) by HexHacking
+- [BlackReflection](https://github.com/CodingGay/BlackReflection) by CodingGay
+- [FreeReflection](https://github.com/tiann/FreeReflection) by tiann
+
+## 许可 · License
+
+[Apache License 2.0](LICENSE)。修改说明见 [NOTICE](NOTICE)，第三方代码的许可见 [THIRD_PARTY_NOTICES.txt](app/src/main/assets/THIRD_PARTY_NOTICES.txt)。
+
+[Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for what was changed, and [THIRD_PARTY_NOTICES.txt](app/src/main/assets/THIRD_PARTY_NOTICES.txt) for the licenses of third-party code.
+
+版权及 bug 反馈 · Copyright and bug reports: support@lqstudio.uk

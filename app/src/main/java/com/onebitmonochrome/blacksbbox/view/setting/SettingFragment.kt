@@ -41,6 +41,8 @@ class SettingFragment : PreferenceFragmentCompat() {
 
     companion object {
         private const val CONTACT_EMAIL = "support@lqstudio.uk"
+        // Marks the credits row that opens the license text instead of a link.
+        private const val LICENSES = "licenses"
     }
 
     private val vpnPermissionResult =
@@ -323,7 +325,7 @@ class SettingFragment : PreferenceFragmentCompat() {
         findPreference<Preference>("check_update")?.apply {
             summary = getString(R.string.check_update_summary, UpdateChecker.currentVersion(requireContext()))
             setOnPreferenceClickListener {
-                UpdateChecker.check(requireContext())
+                UpdateChecker.check(requireActivity())
                 true
             }
         }
@@ -337,6 +339,10 @@ class SettingFragment : PreferenceFragmentCompat() {
     // Upstream projects this build is based on, grouped by what they provide.
     private fun showCredits() {
         val sections = listOf(
+            R.string.about_this_project_title to listOf(
+                Triple(R.string.about_source_title, R.string.about_source_summary, UpdateChecker.REPO_URL),
+                Triple(R.string.about_licenses_title, R.string.about_licenses_summary, LICENSES)
+            ),
             R.string.about_main_base_title to listOf(
                 Triple(R.string.about_owner_title, R.string.about_owner_summary, "https://github.com/Black00Z"),
                 Triple(R.string.about_newblackbox_title, R.string.about_link_summary, "https://github.com/ALEX5402/NewBlackbox")
@@ -370,7 +376,9 @@ class SettingFragment : PreferenceFragmentCompat() {
                 val row = ItemCreditBinding.inflate(layoutInflater, sheet.creditsList, false)
                 row.creditTitle.setText(title)
                 if (summary != 0) row.creditSummary.setText(summary) else row.creditSummary.visibility = View.GONE
-                if (url != null) {
+                if (url == LICENSES) {
+                    row.root.setOnClickListener { showLicenses() }
+                } else if (url != null) {
                     row.root.setOnClickListener { openLink(url) }
                 } else {
                     row.root.isClickable = false
@@ -391,6 +399,19 @@ class SettingFragment : PreferenceFragmentCompat() {
             }
         }
         dialog.show()
+    }
+
+    // Notices of the bundled third-party code, shipped in the APK as Apache-2.0 and MIT require.
+    private fun showLicenses() {
+        val context = requireContext()
+        val text = runCatching {
+            context.assets.open("THIRD_PARTY_NOTICES.txt").bufferedReader().use { it.readText() }
+        }.getOrDefault("")
+        AlertDialog.Builder(context)
+                .setTitle(R.string.about_licenses_title)
+                .setMessage(getString(R.string.about_licenses_header) + "\n\n" + text)
+                .setPositiveButton(R.string.done, null)
+                .show()
     }
 
     private fun openLink(url: String) {

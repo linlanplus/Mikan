@@ -1,0 +1,22 @@
+Mikan (小橘分身)
+Copyright 2026 LQ Studio
+
+This product is a modified version of Black's BlackBox
+(https://github.com/Black00Z/Blacks-BlackBox), licensed under the Apache License,
+Version 2.0. Black's BlackBox derives from NewBlackbox
+(https://github.com/ALEX5402/NewBlackbox), BlackBox
+(https://github.com/FBlackBox/BlackBox) and VirtualApp
+(https://github.com/asLody/VirtualApp). Their copyright notices are kept in the
+source files.
+
+Changes made in Mikan, starting from Black's BlackBox commit 23ba344:
+  - Renamed the app (applicationId uk.lqstudio.mikan) with a new name and icon.
+  - New home screen: each clone runs as its own engine user, clones are grouped
+    into "users" and folders, with launcher-style drag and drop.
+  - Per-clone device identity: phone model presets, system property overrides in
+    native code, and Settings provider values (android_id, device name).
+  - Settings: theme, language, credits, update check.
+The full list of changes is the git history of this repository.
+
+This product bundles third-party code under their own licenses; see
+app/src/main/assets/THIRD_PARTY_NOTICES.txt.
