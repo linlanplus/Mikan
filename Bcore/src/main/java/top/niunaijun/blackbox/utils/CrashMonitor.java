@@ -158,6 +158,11 @@ public class CrashMonitor {
                             } catch (Throwable ignored) {
                             }
 
+                            // Report first: a process that dies without reporting looks like a
+                            // low-memory kill, so ActivityManager relaunches the top activity and the
+                            // guest crash-loops forever. A reported crash gets finished instead.
+                            reportCrashToSystem(throwable);
+
                             // Force terminate guest process to avoid black-screen limbo.
                             android.os.Process.killProcess(android.os.Process.myPid());
                             System.exit(10);
@@ -305,6 +310,27 @@ public class CrashMonitor {
     }
     
     
+    /** Same report the framework's RuntimeInit sends before killing a crashed app. */
+    private static void reportCrashToSystem(Throwable throwable) {
+        try {
+            Object am = Class.forName("android.app.ActivityManager").getMethod("getService").invoke(null);
+            Object at = Class.forName("android.app.ActivityThread").getMethod("currentActivityThread").invoke(null);
+            Object appThread = at.getClass().getMethod("getApplicationThread").invoke(at);
+            android.os.IBinder binder = ((android.os.IInterface) appThread).asBinder();
+            Object crashInfo = Class.forName("android.app.ApplicationErrorReport$ParcelableCrashInfo")
+                    .getConstructor(Throwable.class).newInstance(throwable);
+            for (java.lang.reflect.Method m : am.getClass().getMethods()) {
+                if (m.getName().equals("handleApplicationCrash") && m.getParameterTypes().length == 2) {
+                    m.invoke(am, binder, crashInfo);
+                    return;
+                }
+            }
+            Slog.w(TAG, "handleApplicationCrash not found");
+        } catch (Throwable e) {
+            Slog.w(TAG, "Failed to report crash to system: " + e);
+        }
+    }
+
     private static String getCurrentPackageName() {
         try {
             return BActivityThread.getAppPackageName();
