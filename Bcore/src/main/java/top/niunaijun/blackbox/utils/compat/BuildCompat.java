@@ -22,7 +22,7 @@ public class BuildCompat {
 
     
     public static boolean isTiramisu() {
-        return Build.VERSION.SDK_INT >= 32 || (Build.VERSION.SDK_INT >= 31 && Build.VERSION.PREVIEW_SDK_INT == 1);
+        return Build.VERSION.SDK_INT >= 33 || (Build.VERSION.SDK_INT >= 32 && Build.VERSION.PREVIEW_SDK_INT == 1);
     }
 
     
