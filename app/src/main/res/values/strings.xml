@@ -140,8 +140,6 @@
     <string name="uninstall_module_toast">Please uninstall the xposed module in the Module Manager</string>
     <string name="other">Others</string>
     <string name="daemon_enable">Daemon</string>
-    <string name="use_vpn_network">Use VPN Network</string>
-    <string name="use_vpn_network_summary">Route traffic through VPN for sandboxed apps (may improve network access)</string>
     <string name="vpn_not_supported_android14">VPN mode is not supported on Android 14+</string>
     <string name="disable_flag_secure">Disable Flag Secure</string>
     <string name="disable_flag_secure_summary">Allow screenshots and screen recording in apps</string>
@@ -218,7 +216,6 @@
     <string name="share_logs_failed">Failed to prepare logs</string>
     <string name="unknown_app">Unknown App</string>
     <string name="fake_location_missing_target">Fake location failed: missing target package</string>
-    <string name="vpn_permission_denied">VPN permission denied</string>
     <string name="default_group_name">Default</string>
     <string name="group_count">%d clones</string>
     <string name="home_empty_hint">No clones here yet.\nTap + to add one.</string>
@@ -301,4 +298,28 @@
     <string name="proxy_timeout">Timeout</string>
     <string name="proxy_unreachable">Unreachable</string>
     <string name="proxy_ms">%1$d ms</string>
+    <string name="system_gallery_title">Access all system photos</string>
+    <string name="system_gallery_summary">When enabled, all clones can see the device’s photos and videos. When off, each user sees only their own imported media and allowed photos.</string>
+    <string name="system_gallery_warning">This grants access to the entire gallery. Enable with caution.</string>
+    <string name="system_gallery_denied">Gallery permission was not granted. System gallery access is off.</string>
+    <string name="group_gallery_not_empty">This user still has imported media. Remove it from Mikan Gallery before deleting the user.</string>
+    <string name="gallery_preserve_failed">Could not preserve this user’s gallery. The clone was kept.</string>
+    <string name="album_management">Album management</string>
+    <string name="album_management_summary">Manage system photo access or choose pictures for a user.</string>
+    <string name="album_grant_selected">Allow selected photos for a user</string>
+    <string name="album_grant_summary">Choose pictures in the system picker. Copies are saved only to the selected user’s album and can be removed here.</string>
+    <string name="album_partial_mode">Per-user photo access</string>
+    <string name="album_switch_partial_hint">Switch off full system access for all clones? Each user will see only their own imported media and allowed photos.</string>
+    <string name="album_switch_partial">Switch and choose user</string>
+    <string name="album_granted_images">Allowed photos</string>
+    <string name="album_select_images">Choose photos</string>
+    <string name="album_grants_empty">No photos allowed yet. Tap Choose photos to add some.</string>
+    <string name="album_picker_unavailable">System photo picker unavailable</string>
+    <string name="album_revoke">Revoke access</string>
+    <string name="album_grant_result">Allowed %1$d of %2$d selected photos</string>
+    <string name="gms_members_status">GMS is enabled in %1$d of %2$d clones</string>
+    <string name="gms_empty_policy">New or moved clones will use this setting</string>
+    <string name="gms_apply_failed">Some clones could not apply the Google services setting. Retry in GMS Manager.</string>
+    <string name="gms_shared_profile">Legacy clones share an installation across users. Move them under the same user before changing GMS.</string>
+    <string name="gms_scope_hint">This setting applies to all clones under this user, including new and moved clones. Moving a clone to a user with GMS turned off removes its Google services data.</string>
 </resources>

@@ -5,7 +5,7 @@ import java.io.File
 import top.niunaijun.blackbox.BlackBoxCore
 
 object BlackBoxGuestGalleryInstaller {
-    private const val PACKAGE_NAME = "com.onebitmonochrome.blackboxgallery"
+    private const val PACKAGE_NAME = com.onebitmonochrome.blacksbbox.data.CloneStore.GALLERY_STUB
     private const val ASSET_NAME = "blackbox-gallery-stub.apk"
 
     fun ensureInstalled(context: Context, userId: Int): Boolean {

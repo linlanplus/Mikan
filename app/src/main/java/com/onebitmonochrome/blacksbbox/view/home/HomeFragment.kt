@@ -23,6 +23,11 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.core.view.doOnPreDraw
 import androidx.core.view.drawToBitmap
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import top.niunaijun.blackbox.media.BlackBoxMediaStore
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.GridLayoutManager
@@ -264,6 +269,7 @@ class HomeFragment : Fragment(), DragLayer.Listener {
             menu.add(Menu.NONE, base, base, R.string.group_new)
             menu.add(Menu.NONE, base + 1, base + 1, R.string.group_rename)
             menu.add(Menu.NONE, base + 2, base + 2, R.string.group_delete)
+            menu.add(Menu.NONE, base + 3, base + 3, R.string.blackbox_gallery_menu)
             setOnMenuItemClickListener { menuItem ->
                 when (val id = menuItem.itemId) {
                     in groups.indices -> if (groups[id].id != currentId) switchGroup(groups[id].id)
@@ -277,6 +283,7 @@ class HomeFragment : Fragment(), DragLayer.Listener {
                         }
                     }
                     base + 2 -> group?.let { deleteGroup(it) }
+                    base + 3 -> group?.let { BlackBoxGalleryActivity.start(requireContext(), it.id) }
                 }
                 true
             }
@@ -303,9 +310,12 @@ class HomeFragment : Fragment(), DragLayer.Listener {
         when {
             CloneStore.groups().size <= 1 -> toast(R.string.group_delete_last)
             CloneStore.cloneCount(g.id) > 0 || g.items.isNotEmpty() -> toast(R.string.group_delete_not_empty)
-            else -> {
-                CloneStore.deleteGroup(g.id)
-                switchGroup(CloneStore.groups().first().id)
+            else -> viewLifecycleOwner.lifecycleScope.launch {
+                val hasMedia = withContext(Dispatchers.IO) {
+                    BlackBoxMediaStore.listMediaEntries(CloneStore.galleryOwner(g.id)).isNotEmpty()
+                }
+                if (hasMedia) toast(R.string.group_gallery_not_empty)
+                else if (CloneStore.deleteGroup(g.id)) switchGroup(CloneStore.groups().first().id)
             }
         }
     }
@@ -385,7 +395,7 @@ class HomeFragment : Fragment(), DragLayer.Listener {
                 when (menuItem.itemId) {
                     R.id.folder_open -> openFolder(item, anchor)
                     R.id.folder_rename -> renameFolder(item.folder)
-                    R.id.folder_move_to_group -> pickOtherGroup { CloneStore.moveToGroup(item.key, it) }
+                    R.id.folder_move_to_group -> pickOtherGroup { viewModel.moveToGroup(item.key, it) }
                     R.id.folder_dissolve -> {
                         CloneStore.dissolveFolder(item.folder.id)
                         viewModel.refreshLayout()
@@ -730,13 +740,13 @@ class HomeFragment : Fragment(), DragLayer.Listener {
             R.id.clone_location -> startActivity(
                     Intent(requireContext(), FakeManagerActivity::class.java).putExtra("userID", clone.userId)
             )
-            R.id.clone_gallery -> BlackBoxGalleryActivity.start(requireContext(), clone.userId)
+            R.id.clone_gallery -> group?.let { BlackBoxGalleryActivity.start(requireContext(), it.id, clone.userId) }
             R.id.clone_move_to_folder -> pickFolder(clone)
             R.id.clone_move_out -> {
                 CloneStore.moveOutOfFolder(clone.key)
                 viewModel.refreshLayout()
             }
-            R.id.clone_move_to_group -> pickOtherGroup { CloneStore.moveToGroup(clone.key, it) }
+            R.id.clone_move_to_group -> pickOtherGroup { viewModel.moveToGroup(clone.key, it) }
             R.id.app_shortcut -> ShortcutUtil.createShortcut(
                     requireContext(), clone.userId, AppInfo(item.name, item.icon, clone.packageName, "", false)
             )
@@ -786,7 +796,6 @@ class HomeFragment : Fragment(), DragLayer.Listener {
                 .setItems(others.map { it.name }.toTypedArray()) { _, which ->
                     closeFolder()
                     onPicked(others[which].id)
-                    viewModel.refreshLayout()
                 }
                 .show()
     }

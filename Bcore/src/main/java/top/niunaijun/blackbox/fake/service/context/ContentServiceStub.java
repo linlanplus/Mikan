@@ -1,6 +1,8 @@
 package top.niunaijun.blackbox.fake.service.context;
 
 import java.lang.reflect.Method;
+import android.net.Uri;
+import top.niunaijun.blackbox.media.BlackBoxMediaContract;
 
 import black.android.content.BRIContentServiceStub;
 import black.android.os.BRServiceManager;
@@ -34,6 +36,14 @@ public class ContentServiceStub extends BinderInvocationStub {
     public static class RegisterContentObserver extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (args != null && args.length > 0 && args[0] instanceof Uri) {
+                Uri uri = (Uri) args[0];
+                if (BlackBoxMediaContract.PUBLIC_AUTHORITY.equals(uri.getAuthority())) {
+                    args[0] = uri.buildUpon().authority(BlackBoxMediaContract.getPrivateAuthority()).build();
+                    return method.invoke(who, args);
+                }
+                if (BlackBoxMediaContract.getPrivateAuthority().equals(uri.getAuthority())) return method.invoke(who, args);
+            }
             return 0;
         }
     }

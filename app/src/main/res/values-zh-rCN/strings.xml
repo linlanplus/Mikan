@@ -146,8 +146,6 @@
     <string name="apk_install_import_empty">没有 APK 分享到小橘分身</string>
     <string name="apk_install_import_failed">APK 安装失败</string>
     <string name="apk_install_imported_count">已安装 %1$d 个 APK</string>
-    <string name="use_vpn_network">使用 VPN 网络</string>
-    <string name="use_vpn_network_summary">让分身应用的流量经过 VPN（可能改善网络访问）</string>
     <string name="vpn_not_supported_android14">Android 14 及以上不支持 VPN 模式</string>
     <string name="disable_flag_secure">解除截屏限制</string>
     <string name="disable_flag_secure_summary">允许在应用内截屏和录屏</string>
@@ -192,7 +190,6 @@
     <string name="share_logs_failed">日志准备失败</string>
     <string name="unknown_app">未知应用</string>
     <string name="fake_location_missing_target">虚拟定位失败：缺少目标应用</string>
-    <string name="vpn_permission_denied">VPN 权限被拒绝</string>
     <string name="default_group_name">默认</string>
     <string name="group_count">%d 个分身</string>
     <string name="home_empty_hint">这里还没有分身\n点右下角 + 添加</string>
@@ -253,4 +250,28 @@
     <string name="proxy_timeout">超时</string>
     <string name="proxy_unreachable">不可达</string>
     <string name="proxy_ms">%1$d ms</string>
+    <string name="system_gallery_title">访问系统全部相册</string>
+    <string name="system_gallery_summary">开启后，所有分身都能看到手机的照片和视频。关闭时仅显示该用户名下导入和授权的内容。</string>
+    <string name="system_gallery_warning">这会获取图库所有权，请谨慎开启</string>
+    <string name="system_gallery_denied">未获得图库权限，系统图库访问已关闭。</string>
+    <string name="group_gallery_not_empty">此用户名下还有导入的照片或视频，请先在分身相册中移除。</string>
+    <string name="gallery_preserve_failed">未能保留该用户的图库，已保留分身。</string>
+    <string name="album_management">相册管理</string>
+    <string name="album_management_summary">管理系统相册访问范围，或按用户选择图片。</string>
+    <string name="album_grant_selected">授权部分相册给对应用户</string>
+    <string name="album_grant_summary">通过系统选图器选择图片，仅将副本保存到指定用户的分身相册。可随时撤销。</string>
+    <string name="album_partial_mode">按用户授权图片</string>
+    <string name="album_switch_partial_hint">切换后，所有分身将停止访问完整系统相册，仅能看到各自用户名下已导入和已授权的图片或视频。</string>
+    <string name="album_switch_partial">切换并选择用户</string>
+    <string name="album_granted_images">已授权的图片</string>
+    <string name="album_select_images">选择图片</string>
+    <string name="album_grants_empty">还没有授权图片。点「选择图片」添加。</string>
+    <string name="album_picker_unavailable">未找到系统选图器</string>
+    <string name="album_revoke">撤销授权</string>
+    <string name="album_grant_result">已授权 %1$d / %2$d 张图片</string>
+    <string name="gms_members_status">已有 %1$d / %2$d 个分身启用 GMS</string>
+    <string name="gms_empty_policy">还没有分身，新建或移入的分身将使用此设置</string>
+    <string name="gms_apply_failed">有分身未能同步 Google 服务，请在 GMS 管理中重试。</string>
+    <string name="gms_shared_profile">旧版分身共用同一个运行空间，请先把这些分身移到同一用户名下，再更改 GMS。</string>
+    <string name="gms_scope_hint">此设置适用于该用户名下的所有分身，包括新建和移入的分身。 移入未开启 GMS 的用户时，该分身的 Google 服务数据会被清除。</string>
 </resources>

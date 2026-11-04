@@ -13,6 +13,10 @@ public abstract class ClientConfiguration {
 
     public abstract String getHostPackageName();
 
+    public int getGalleryOwner(int userId, String packageName) {
+        return userId;
+    }
+
     public boolean isEnableDaemonService() {
         return true;
     }

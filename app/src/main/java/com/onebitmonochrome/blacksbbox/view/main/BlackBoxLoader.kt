@@ -1,5 +1,6 @@
 package com.onebitmonochrome.blacksbbox.view.main
 
+import com.onebitmonochrome.blacksbbox.data.CloneStore
 import android.app.Application
 import android.content.Context
 import android.util.Log
@@ -24,7 +25,6 @@ class BlackBoxLoader {
     private var mShowShortcutPermissionDialog by AppSharedPreferenceDelegate(App.getContext(), true)
 
     
-    private var mUseVpnNetwork by AppSharedPreferenceDelegate(App.getContext(), false)
 
     private var mDisableFlagSecure by AppSharedPreferenceDelegate(App.getContext(), false)
 
@@ -93,23 +93,6 @@ class BlackBoxLoader {
             this.mShowShortcutPermissionDialog = show
         } catch (e: Exception) {
             Log.e(TAG, "Error setting showShortcutPermissionDialog: ${e.message}")
-        }
-    }
-
-    fun useVpnNetwork(): Boolean {
-        return try {
-            mUseVpnNetwork
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting useVpnNetwork: ${e.message}")
-            false
-        }
-    }
-
-    fun invalidUseVpnNetwork(enable: Boolean) {
-        try {
-            this.mUseVpnNetwork = enable
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting useVpnNetwork: ${e.message}")
         }
     }
 
@@ -288,6 +271,11 @@ class BlackBoxLoader {
                     .doAttachBaseContext(
                             context,
                             object : ClientConfiguration() {
+                                override fun getGalleryOwner(userId: Int, packageName: String?): Int {
+                                    val group = CloneStore.galleryGroup(userId, packageName) ?: return userId
+                                    return CloneStore.galleryOwner(group)
+                                }
+
                                 override fun getHostPackageName(): String {
                                     return try {
                                         context.packageName
@@ -311,15 +299,6 @@ class BlackBoxLoader {
                                         mDaemonEnable
                                     } catch (e: Exception) {
                                         Log.e(TAG, "Error checking daemonEnable: ${e.message}")
-                                        false
-                                    }
-                                }
-
-                                override fun isUseVpnNetwork(): Boolean {
-                                    return try {
-                                        mUseVpnNetwork
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Error checking useVpnNetwork: ${e.message}")
                                         false
                                     }
                                 }

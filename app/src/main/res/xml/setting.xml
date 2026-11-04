@@ -46,10 +46,10 @@
                 app:title="@string/proxy_import_title"
                 app:summary="@string/proxy_import_hint" />
 
-        <SwitchPreferenceCompat
-                app:key="use_vpn_network"
-                app:title="@string/use_vpn_network"
-                app:summary="@string/use_vpn_network_summary" />
+        <Preference
+                app:key="album_management"
+                app:title="@string/album_management"
+                app:summary="@string/album_management_summary" />
 
         <SwitchPreferenceCompat
                 app:key="disable_flag_secure"

@@ -27,16 +27,14 @@ class GmsAdapter(
         private val binding = ItemGmsBinding.bind(itemView)
         override fun setContent(item: GmsBean, isSelected: Boolean, payload: Any?) {
             binding.tvTitle.text = item.userName
-            binding.checkbox.isChecked = item.isInstalledGms
+            binding.checkbox.isChecked = item.enabled
+            binding.tvStatus.text = if (item.total == 0) itemView.context.getString(R.string.gms_empty_policy)
+                                    else itemView.context.getString(R.string.gms_members_status, item.installed, item.total)
             binding.btnWipe.isVisible = item.hasGmsTraces
             binding.btnWipe.setOnClickListener {
                 onWipeClicked(item)
             }
-            binding.checkbox.setOnCheckedChangeListener  { buttonView, _ ->
-                if(buttonView.isPressed){
-                    binding.root.performClick()
-                }
-            }
+
         }
     }
 }

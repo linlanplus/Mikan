@@ -713,7 +713,7 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
                 return result.installError("install source is null");
             }
 
-            if (isApksBundle(stagedFile)) {
+            if (!option.isFlag(InstallOption.FLAG_SYSTEM) && isApksBundle(stagedFile)) {
                 extractedDir = new File(BEnvironment.getCacheDir(), "apks_" + UUID.randomUUID());
                 BzFileUtils.mkdirs(extractedDir);
 
@@ -815,6 +815,7 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
             return result;
         } catch (Throwable t) {
             t.printStackTrace();
+            result.installError(t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName());
         } finally {
             if (stagedFile != null && option.isFlag(InstallOption.FLAG_URI_FILE)) {
                 BzFileUtils.deleteDir(stagedFile);
@@ -862,8 +863,9 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
         if (name != null && name.toLowerCase().endsWith(".apks")) {
             return true;
         }
-        // Fallback: some document providers strip/rename extensions. Detect by zip content.
+        // Some document providers omit the extension. A standalone APK can itself embed APKs.
         try (ZipFile zipFile = new ZipFile(file)) {
+            if (zipFile.getEntry("AndroidManifest.xml") != null) return false;
             Enumeration<? extends ZipEntry> entries = zipFile.entries();
             int apkCount = 0;
             while (entries.hasMoreElements()) {

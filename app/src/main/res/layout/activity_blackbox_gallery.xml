@@ -27,6 +27,16 @@
         app:layout_constraintTop_toBottomOf="@id/toolbar_layout">
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/select_images_button"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/album_select_images"
+            android:textAllCaps="false"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/refresh_button"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="0dp"

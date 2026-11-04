@@ -147,6 +147,8 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             Object content = null;
 
             if (auth instanceof String) {
+                // Guest access to the album must go through the wrapper which supplies the caller identity.
+                if (ProxyManifest.getMediaProviderAuthority().equals(auth)) return null;
                 if (ProxyManifest.isProxy((String) auth)) {
                     return method.invoke(who, args);
                 }
@@ -155,7 +157,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                     args[1] = BlackBoxCore.getHostPkg();
                 }
 
-                if ("media".equals(auth)) {
+                if (BlackBoxMediaContract.PUBLIC_AUTHORITY.equals(auth) || BlackBoxMediaContract.MEDIA_DOCUMENTS.equals(auth)) {
                     args[authIndex] = ProxyManifest.getMediaProviderAuthority();
                     content = method.invoke(who, args);
                     if (content != null) {
@@ -163,7 +165,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                                 .resolveContentProvider(ProxyManifest.getMediaProviderAuthority(), GET_META_DATA);
                         if (providerInfo != null) {
                             providerInfo = new ProviderInfo(providerInfo);
-                            providerInfo.authority = BlackBoxMediaContract.PUBLIC_AUTHORITY;
+                            providerInfo.authority = (String) auth;
                             Reflector.with(content).field("info").set(providerInfo);
                         }
 

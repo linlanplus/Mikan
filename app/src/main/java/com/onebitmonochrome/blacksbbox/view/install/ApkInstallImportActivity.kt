@@ -10,6 +10,7 @@ import com.onebitmonochrome.blacksbbox.R
 import com.onebitmonochrome.blacksbbox.util.toast
 import com.onebitmonochrome.blacksbbox.view.base.LoadingActivity
 import com.onebitmonochrome.blacksbbox.data.CloneStore
+import com.onebitmonochrome.blacksbbox.data.GmsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,7 +48,7 @@ class ApkInstallImportActivity : LoadingActivity() {
                         Log.i(TAG, "Installing APK: userId=$userId uri=$uri")
                         val result = BlackBoxCore.get().installPackageAsUser(uri, userId)
                         if (result.success) {
-                            CloneStore.addClone(userId, result.packageName, null, groupId)
+                            GmsRepository.addClone(userId, result.packageName, null, groupId)?.let { error = it }
                             ok += 1
                         } else {
                             error = result.msg
@@ -76,7 +77,7 @@ class ApkInstallImportActivity : LoadingActivity() {
                 return@launch
             }
 
-            toast(getString(R.string.apk_install_imported_count, successCount))
+            toast(lastError ?: getString(R.string.apk_install_imported_count, successCount))
             finish()
         }
     }

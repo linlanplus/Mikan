@@ -7,6 +7,8 @@ import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Bundle
 import android.widget.MediaController
+import androidx.core.view.isVisible
+import com.onebitmonochrome.blacksbbox.data.CloneStore
 import androidx.appcompat.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import com.onebitmonochrome.blacksbbox.R
@@ -25,12 +27,15 @@ import top.niunaijun.blackbox.media.BlackBoxMediaStore
 class BlackBoxGalleryPreviewActivity : LoadingActivity() {
 
     private val viewBinding: ActivityBlackboxGalleryPreviewBinding by inflate()
-    private val userId by lazy { intent.getIntExtra(EXTRA_USER_ID, 0) }
+    private val groupId by lazy { BlackBoxGalleryActivity.resolveGroup(intent, "extra_user_id") }
+    private val guestUser by lazy { intent.getIntExtra(BlackBoxGalleryActivity.EXTRA_GUEST, intent.getIntExtra("extra_user_id", -1)) }
+    private val manageGrants by lazy { intent.getBooleanExtra(BlackBoxGalleryActivity.EXTRA_GRANTS, false) }
     private val mediaId by lazy { intent.getLongExtra(EXTRA_MEDIA_ID, -1L) }
     private var currentEntry: BlackBoxMediaEntry? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (groupId <= 0) { finish(); return }
         setContentView(viewBinding.root)
         initToolbar(viewBinding.toolbarLayout.toolbar, R.string.blackbox_gallery_title, true)
         initActions()
@@ -38,8 +43,11 @@ class BlackBoxGalleryPreviewActivity : LoadingActivity() {
     }
 
     private fun initActions() {
+        viewBinding.shareButton.isVisible = !manageGrants
+        if (manageGrants) viewBinding.deleteButton.setText(R.string.album_revoke)
+        viewBinding.openGuestGalleryButton.isVisible = !manageGrants && guestUser >= 0
         viewBinding.openGuestGalleryButton.setOnClickListener {
-            if (!BlackBoxGuestGalleryInstaller.launch(this, userId)) {
+            if (!BlackBoxGuestGalleryInstaller.launch(this, guestUser)) {
                 toast(R.string.blackbox_gallery_open_guest_failed)
             }
         }
@@ -51,10 +59,13 @@ class BlackBoxGalleryPreviewActivity : LoadingActivity() {
             showLoading()
             lifecycleScope.launch {
                 val deleted = withContext(Dispatchers.IO) {
-                    BlackBoxMediaStore.delete(userId, entry.privateUri, null, null) > 0
+                    val owner = CloneStore.galleryOwner(groupId)
+                    if (BlackBoxMediaStore.isSelectedImage(entry)) BlackBoxMediaStore.revokeSelectedImage(owner, entry.id)
+                    else BlackBoxMediaStore.delete(owner, entry.privateUri, null, null) > 0
                 }
                 hideLoading()
                 if (deleted) {
+                    top.niunaijun.blackbox.media.BlackBoxMediaProvider.notifyGalleries(this@BlackBoxGalleryPreviewActivity)
                     setResult(RESULT_OK)
                     finish()
                 } else {
@@ -68,10 +79,10 @@ class BlackBoxGalleryPreviewActivity : LoadingActivity() {
         showLoading()
         lifecycleScope.launch {
             val entry = withContext(Dispatchers.IO) {
-                BlackBoxMediaStore.getEntry(userId, mediaId)
+                BlackBoxMediaStore.getEntry(CloneStore.galleryOwner(groupId), mediaId)
             }
             hideLoading()
-            if (entry == null) {
+            if (entry == null || (manageGrants && !BlackBoxMediaStore.isSelectedImage(entry))) {
                 toast(R.string.blackbox_gallery_item_missing)
                 finish()
                 return@launch
@@ -82,7 +93,7 @@ class BlackBoxGalleryPreviewActivity : LoadingActivity() {
     }
 
     private fun bindEntry(entry: BlackBoxMediaEntry) {
-        viewBinding.toolbarLayout.toolbar.subtitle = BlackBoxGalleryUserPicker.subtitleForUser(userId)
+        viewBinding.toolbarLayout.toolbar.subtitle = CloneStore.groups().firstOrNull { it.id == groupId }?.name
         if (entry.isVideo) {
             viewBinding.imageView.visibility = android.view.View.GONE
             viewBinding.videoView.visibility = android.view.View.VISIBLE
@@ -118,42 +129,44 @@ class BlackBoxGalleryPreviewActivity : LoadingActivity() {
 
         AlertDialog.Builder(this)
             .setTitle(R.string.blackbox_gallery_share_to_app)
-            .setItems(targets.map { resolveLabel(it) }.toTypedArray()) { _, which ->
+            .setItems(targets.map { it.label }.toTypedArray()) { _, which ->
                 startShareTarget(shareIntent, targets[which])
             }
             .show()
     }
 
-    private fun findShareTargets(baseIntent: Intent, mimeType: String): List<ResolveInfo> {
+    private data class Target(val userId: Int, val info: ResolveInfo, val label: String)
+
+    private fun findShareTargets(baseIntent: Intent, mimeType: String): List<Target> {
         val candidateTypes = linkedSetOf(
             mimeType,
             if (mimeType.startsWith("video/")) "video/*" else "image/*",
             "*/*"
         )
-        val byComponent = linkedMapOf<String, ResolveInfo>()
-        candidateTypes.forEach { type ->
-            val intent = Intent(baseIntent).apply { this.type = type }
-            BlackBoxCore.getBPackageManager()
-                .queryIntentActivities(intent, 0, type, userId)
-                .orEmpty()
-                .filter { it.activityInfo != null }
-                .forEach { resolveInfo ->
-                    val info = resolveInfo.activityInfo
-                    byComponent["${info.packageName}/${info.name}"] = resolveInfo
+        val targets = linkedMapOf<String, Target>()
+        for (clone in CloneStore.groupClones(groupId)) {
+            for (type in candidateTypes) {
+                val intent = Intent(baseIntent).setPackage(clone.packageName).setType(type)
+                for (result in BlackBoxCore.getBPackageManager().queryIntentActivities(intent, 0, type, clone.userId).orEmpty()) {
+                    val info = result.activityInfo ?: continue
+                    if (info.packageName == clone.packageName) {
+                        targets["${clone.key}/${info.name}"] = Target(clone.userId, result, clone.label ?: resolveLabel(result))
+                    }
                 }
+            }
         }
-        return byComponent.values.sortedBy { resolveLabel(it).lowercase() }
+        return targets.values.sortedBy { it.label.lowercase() }
     }
 
-    private fun startShareTarget(baseIntent: Intent, target: ResolveInfo) {
-        val info = target.activityInfo ?: return
+    private fun startShareTarget(baseIntent: Intent, target: Target) {
+        val info = target.info.activityInfo ?: return
         val intent = Intent(baseIntent).apply {
             setClassName(info.packageName, info.name)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         try {
-            BlackBoxCore.get().startActivity(intent, userId)
+            BlackBoxCore.get().startActivity(intent, target.userId)
         } catch (e: Exception) {
             toast(R.string.blackbox_gallery_share_failed)
         }
@@ -168,12 +181,13 @@ class BlackBoxGalleryPreviewActivity : LoadingActivity() {
     }
 
     companion object {
-        private const val EXTRA_USER_ID = "extra_user_id"
         private const val EXTRA_MEDIA_ID = "extra_media_id"
 
-        fun intentFor(context: Context, userId: Int, mediaId: Long): Intent {
+        fun intentFor(context: Context, groupId: Long, guestUser: Int?, mediaId: Long, manageGrants: Boolean): Intent {
             return Intent(context, BlackBoxGalleryPreviewActivity::class.java)
-                .putExtra(EXTRA_USER_ID, userId)
+                .putExtra(BlackBoxGalleryActivity.EXTRA_GROUP, groupId)
+                .putExtra(BlackBoxGalleryActivity.EXTRA_GUEST, guestUser ?: -1)
+                .putExtra(BlackBoxGalleryActivity.EXTRA_GRANTS, manageGrants)
                 .putExtra(EXTRA_MEDIA_ID, mediaId)
         }
     }

@@ -2,6 +2,7 @@ package com.onebitmonochrome.blacksbbox.view.gallery
 
 import android.content.Intent
 import android.net.Uri
+import com.onebitmonochrome.blacksbbox.data.CloneStore
 import android.os.Build
 import android.os.Bundle
 import androidx.lifecycle.lifecycleScope
@@ -13,6 +14,7 @@ import com.onebitmonochrome.blacksbbox.view.base.LoadingActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.niunaijun.blackbox.media.BlackBoxMediaProvider
 import top.niunaijun.blackbox.media.BlackBoxMediaStore
 
 class BlackBoxGalleryImportActivity : LoadingActivity() {
@@ -38,35 +40,31 @@ class BlackBoxGalleryImportActivity : LoadingActivity() {
         if (hasStartedImport) {
             return
         }
-        val shown = BlackBoxGalleryUserPicker.show(
+        BlackBoxGalleryUserPicker.show(
             context = this,
-            onSelected = { userId ->
+            onSelected = { groupId ->
                 hasStartedImport = true
-                importMedia(userId, uris)
+                importMedia(groupId, uris)
             },
             onCancelled = { finish() }
         )
-        if (!shown) {
-            toast(R.string.blackbox_gallery_import_failed)
-            finish()
-        }
     }
 
-    private fun importMedia(userId: Int, uris: List<Uri>) {
+    private fun importMedia(groupId: Long, uris: List<Uri>) {
         showLoading()
         lifecycleScope.launch {
             val importedCount = withContext(Dispatchers.IO) {
+                val owner = CloneStore.galleryOwner(groupId)
                 var successCount = 0
                 uris.forEach { uri ->
                     runCatching {
-                        BlackBoxMediaStore.importMedia(this@BlackBoxGalleryImportActivity, userId, uri, contentResolver.getType(uri))
+                        BlackBoxMediaStore.importMedia(this@BlackBoxGalleryImportActivity, owner, uri, intent.type)
                     }.onSuccess {
                         successCount += 1
                     }
                 }
                 if (successCount > 0) {
-                    BlackBoxMediaStore.rescanUser(userId)
-                    BlackBoxGuestGalleryInstaller.ensureInstalled(this@BlackBoxGalleryImportActivity, userId)
+                    BlackBoxMediaProvider.notifyGalleries(this@BlackBoxGalleryImportActivity)
                 }
                 successCount
             }
@@ -77,7 +75,7 @@ class BlackBoxGalleryImportActivity : LoadingActivity() {
                 return@launch
             }
             toast(getString(R.string.blackbox_gallery_imported_count, importedCount))
-            BlackBoxGalleryActivity.start(this@BlackBoxGalleryImportActivity, userId)
+            BlackBoxGalleryActivity.start(this@BlackBoxGalleryImportActivity, groupId)
             finish()
         }
     }
@@ -85,12 +83,14 @@ class BlackBoxGalleryImportActivity : LoadingActivity() {
     @Suppress("DEPRECATION")
     private fun extractSharedUris(intent: Intent): List<Uri> {
         val result = linkedSetOf<Uri>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)?.let(result::add)
-            intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)?.forEach(result::add)
+        if (intent.action == Intent.ACTION_SEND_MULTIPLE) {
+            val streams = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                          else intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+            streams?.let(result::addAll)
         } else {
-            (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri)?.let(result::add)
-            intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.forEach(result::add)
+            val stream = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                         else intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+            stream?.let(result::add)
         }
         val clipData = intent.clipData
         if (clipData != null) {

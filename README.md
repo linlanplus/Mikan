@@ -4,7 +4,7 @@
 
 An ad-free Android app cloner with no limit on the number of clones. No root needed.
 
-> 当前版本 / Current version · **1.0.1**
+> 当前版本 / Current version · **1.0.2**
 
 ## 功能 · Features
 
@@ -13,7 +13,9 @@ An ad-free Android app cloner with no limit on the number of clones. No root nee
 - **用户和文件夹：** 按"用户"分组管理分身，用文件夹整理，和桌面一样长按拖动。
 - 在 **设置 → 设置链式代理** 中导入订阅或节点链接。首次保存后，这个入口变为 **我的链式代理**。长按分身可选择节点或测延迟。内置 Xray 支持 VMess、VLESS、Trojan 和 Shadowsocks，代理该分身的 TCP 连接。UDP 和 DNS 使用设备网络。
 - **重命名：** 给分身改显示名称，不影响应用本身。
-- **虚拟定位、分身相册、快捷方式、冻结：** 继承自上游项目。
+- 在 **设置 → 相册管理** 为指定用户名选择照片或撤销授权。按用户选图无需开启完整系统相册访问。
+- 在 **GMS 管理** 按首页用户名设置 Google 服务，之后新建或移入的分身会跟随该设置。
+- **虚拟定位、快捷方式、冻结：** 继承自上游项目。
 - **主题和语言：** 跟随系统 / 浅色 / 深色，简体中文 / English。
 
 ---
@@ -23,7 +25,9 @@ An ad-free Android app cloner with no limit on the number of clones. No root nee
 - **Users and folders:** group clones into "users" and organise them in folders with launcher-style drag and drop.
 - Import subscriptions or node links in **Settings → Set up proxy subscriptions**. After the first save, this entry becomes **My proxy subscriptions**. Long-press a clone to choose a node or test latency. The embedded Xray core routes the clone’s TCP connections over VMess, VLESS, Trojan or Shadowsocks. UDP and DNS use the device network.
 - **Rename:** change the name a clone is shown with, without touching the app itself.
-- **Fake location, gallery, shortcuts, freezing:** inherited from the upstream project.
+- In **Settings → Album management**, choose photos for a named user or revoke access to individual photos. This works without full system gallery access.
+- **GMS Manager** controls Google services per home-screen user. New and moved clones inherit that user’s setting.
+- **Fake location, shortcuts, freezing:** inherited from the upstream project.
 - **Theme and language:** system / light / dark, 简体中文 / English.
 
 ## 下载 · Download

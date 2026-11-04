@@ -1,6 +1,8 @@
 package com.onebitmonochrome.blacksbbox.data
 
 import android.content.Context
+import top.niunaijun.blackbox.core.GmsCore
+import top.niunaijun.blackbox.media.BlackBoxMediaStore
 import org.json.JSONArray
 import org.json.JSONObject
 import com.onebitmonochrome.blacksbbox.app.App
@@ -21,7 +23,7 @@ object CloneStore {
         val key: String get() = folderKey(id)
     }
 
-    data class Group(val id: Long, var name: String, val items: MutableList<String> = mutableListOf())
+    data class Group(val id: Long, var name: String, val items: MutableList<String> = mutableListOf(), var gmsEnabled: Boolean? = null)
 
     private const val PREFS = "clone_layout"
     private const val KEY_STATE = "state"
@@ -32,6 +34,7 @@ object CloneStore {
     private val groups = mutableListOf<Group>()
     private val folders = mutableMapOf<Long, Folder>()
     private val clones = mutableMapOf<String, Clone>()
+    private val pendingGalleryOwners = mutableMapOf<Int, Long>()
     private var nextId = 1L
     private var nextUserId = 0
 
@@ -48,6 +51,61 @@ object CloneStore {
     fun groups(): List<Group> = synchronized(lock) {
         ensureLoaded()
         groups.map { it.copy(items = it.items.toMutableList()) }
+    }
+
+    private fun members(group: Group): List<Clone> = group.items.flatMap { key ->
+        if (isFolderKey(key)) folders[key.drop(2).toLong()]?.items.orEmpty() else listOf(key)
+    }.mapNotNull { clones[it] }
+
+    fun groupClones(groupId: Long): List<Clone> = synchronized(lock) {
+        ensureLoaded()
+        groups.firstOrNull { it.id == groupId }?.let { group -> members(group).map { it.copy() } }.orEmpty()
+    }
+
+    fun galleryGroup(userId: Int, packageName: String?): Long? = synchronized(lock) {
+        ensureLoaded()
+        // The bundled gallery runs alongside the clone in its engine user.
+        val sameUser = groups.map { it to members(it).filter { c -> c.userId == userId } }
+        sameUser.firstOrNull { (_, cs) -> cs.any { it.packageName == packageName && !isHelper(it.packageName) } }?.first?.id
+            ?: sameUser.firstOrNull { (_, cs) -> cs.any { !isHelper(it.packageName) } }?.first?.id
+            ?: sameUser.firstOrNull { it.second.isNotEmpty() }?.first?.id
+    }
+
+    internal fun isHelper(pkg: String) = pkg == GALLERY_STUB || GmsCore.isGoogleAppOrService(pkg)
+
+    fun setGroupGms(groupId: Long, enabled: Boolean) = synchronized(lock) {
+        ensureLoaded()
+        val group = groups.firstOrNull { it.id == groupId } ?: return@synchronized
+        if (group.gmsEnabled != enabled) {
+            group.gmsEnabled = enabled
+            save()
+        }
+    }
+
+    internal const val GALLERY_STUB = "com.onebitmonochrome.blackboxgallery"
+
+    /** Negative owners keep home albums separate from every engine user, including user zero. */
+    fun galleryOwner(groupId: Long): Int {
+        require(groupId in 1..Int.MAX_VALUE.toLong())
+        val owner = -groupId.toInt()
+        val pending = synchronized(lock) {
+            ensureLoaded()
+            pendingGalleryOwners.filterValues { it == groupId }.keys.toList()
+        }
+        for (oldUser in pending) {
+            if (BlackBoxMediaStore.adoptLegacyGallery(oldUser, owner)) {
+                synchronized(lock) {
+                    if (pendingGalleryOwners.remove(oldUser) != null) save()
+                }
+            }
+        }
+        return owner
+    }
+
+    fun preserveGalleryBeforeUninstall(userId: Int): Boolean {
+        val group = synchronized(lock) { ensureLoaded(); pendingGalleryOwners[userId] } ?: return true
+        galleryOwner(group)
+        return synchronized(lock) { userId !in pendingGalleryOwners }
     }
 
     fun currentGroup(): Group = synchronized(lock) {
@@ -107,11 +165,17 @@ object CloneStore {
         ensureLoaded()
         var changed = false
         for ((userId, packages) in installed) {
+            // GMS installs its companion packages into an existing clone's engine user.
+            val hasApp = packages.any { !isHelper(it) } ||
+                    clones.values.any { it.userId == userId && it.packageName != GALLERY_STUB }
+            val standaloneGoogle = if (GmsCore.VENDING_PKG in packages) GmsCore.VENDING_PKG else GmsCore.GMS_PKG
             for (pkg in packages) {
+                if (GmsCore.isGoogleAppOrService(pkg) && (hasApp || pkg != standaloneGoogle)) continue
                 val key = cloneKey(userId, pkg)
                 if (key !in clones) {
                     clones[key] = Clone(userId, pkg, null)
                     groups.first().items += key
+                    if (pkg != GALLERY_STUB && userId !in pendingGalleryOwners) pendingGalleryOwners[userId] = groups.first().id
                     changed = true
                 }
             }
@@ -128,9 +192,22 @@ object CloneStore {
     fun addClone(userId: Int, packageName: String, label: String?, groupId: Long) = synchronized(lock) {
         ensureLoaded()
         val key = cloneKey(userId, packageName)
-        if (key in clones) return@synchronized
+        val target = groups.firstOrNull { it.id == groupId } ?: groups.first()
+        if (key in clones) {
+            // A concurrent engine refresh can discover an install before its result arrives.
+            if (members(target).any { it.key == key }) {
+                val existing = clones.getValue(key)
+                if (existing.label == null && label != null) {
+                    existing.label = label
+                    save()
+                }
+                return@synchronized
+            }
+            detachLocked(key)
+            cleanFoldersLocked()
+        }
         clones[key] = Clone(userId, packageName, label)
-        (groups.firstOrNull { it.id == groupId } ?: groups.first()).items += key
+        target.items += key
         save()
     }
 
@@ -148,7 +225,7 @@ object CloneStore {
 
     fun createGroup(name: String): Long = synchronized(lock) {
         ensureLoaded()
-        val group = Group(nextId++, name)
+        val group = Group(nextId++, name, gmsEnabled = false)
         groups += group
         save()
         group.id
@@ -310,9 +387,11 @@ object CloneStore {
         if (loaded) return
         loaded = true
         val raw = prefs().getString(KEY_STATE, null)
+        var oldOwners: JSONObject? = null
         if (raw != null) {
             try {
                 val root = JSONObject(raw)
+                oldOwners = root.optJSONObject("pendingGalleryOwners")
                 nextId = root.optLong("nextId", 1L)
                 nextUserId = root.optInt("nextUserId", 0)
                 root.optJSONArray("clones")?.forEachObject {
@@ -324,7 +403,8 @@ object CloneStore {
                     folders[folder.id] = folder
                 }
                 root.optJSONArray("groups")?.forEachObject {
-                    groups += Group(it.getLong("id"), it.getString("name"), it.getJSONArray("items").toStringList())
+                    groups += Group(it.getLong("id"), it.getString("name"), it.getJSONArray("items").toStringList(),
+                        if (it.has("gmsEnabled")) it.getBoolean("gmsEnabled") else null)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("CloneStore", "Corrupt layout, starting over: ${e.message}")
@@ -337,11 +417,24 @@ object CloneStore {
             groups += Group(nextId++, App.getContext().getString(com.onebitmonochrome.blacksbbox.R.string.default_group_name))
         }
         // Single-clone folders made by older builds.
-        if (cleanFoldersLocked()) save()
+        val cleaned = cleanFoldersLocked()
+        if (oldOwners != null) {
+            oldOwners.keys().forEach { key -> pendingGalleryOwners[key.toInt()] = oldOwners.getLong(key) }
+        } else {
+            // Pin pre-upgrade galleries to today's home user before a clone can be moved.
+            val previous = groups.flatMap { g -> members(g).map { it to g.id } }
+            for ((clone, groupId) in previous.sortedBy { it.first.packageName == GALLERY_STUB }) {
+                if (clone.userId !in pendingGalleryOwners) pendingGalleryOwners[clone.userId] = groupId
+            }
+        }
+        if (cleaned || oldOwners == null) save()
     }
 
     private fun save() {
         val root = JSONObject()
+        root.put("pendingGalleryOwners", JSONObject().apply {
+            pendingGalleryOwners.forEach { (user, group) -> put(user.toString(), group) }
+        })
         root.put("nextId", nextId)
         root.put("nextUserId", nextUserId)
         root.put("clones", JSONArray().apply {
@@ -353,7 +446,7 @@ object CloneStore {
             folders.values.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("items", JSONArray(it.items))) }
         })
         root.put("groups", JSONArray().apply {
-            groups.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("items", JSONArray(it.items))) }
+            groups.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("items", JSONArray(it.items)).put("gmsEnabled", it.gmsEnabled)) }
         })
         prefs().edit().putString(KEY_STATE, root.toString()).apply()
     }

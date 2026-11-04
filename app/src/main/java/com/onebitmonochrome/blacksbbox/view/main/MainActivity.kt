@@ -3,8 +3,6 @@ package com.onebitmonochrome.blacksbbox.view.main
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.net.Uri
-import android.net.VpnService
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
@@ -19,7 +17,6 @@ import top.niunaijun.blackbox.BlackBoxCore
 import com.onebitmonochrome.blacksbbox.R
 import com.onebitmonochrome.blacksbbox.app.App
 import com.onebitmonochrome.blacksbbox.app.AppFreezeManager
-import com.onebitmonochrome.blacksbbox.app.AppManager
 import com.onebitmonochrome.blacksbbox.databinding.ActivityMainBinding
 import com.onebitmonochrome.blacksbbox.databinding.ViewGroupTitleBinding
 import com.onebitmonochrome.blacksbbox.util.Resolution
@@ -41,8 +38,6 @@ class MainActivity : LoadingActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
-        private const val STORAGE_PERMISSION_REQUEST_CODE = 1001
-        private const val VPN_PERMISSION_REQUEST_CODE = 1002
         private const val HOME_TAG = "home"
 
         fun start(context: Context) {
@@ -69,10 +64,6 @@ class MainActivity : LoadingActivity() {
             initFreezeFab()
 
             
-            checkStoragePermission()
-
-            
-            checkVpnPermission()
 
             if (savedInstanceState == null) UpdateChecker.checkQuietly(this)
 
@@ -96,188 +87,6 @@ class MainActivity : LoadingActivity() {
             Log.e(TAG, "Error refreshing freeze FAB state: ${e.message}")
         }
     }
-
-    private fun checkStoragePermission() {
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                
-                if (!android.os.Environment.isExternalStorageManager()) {
-                    Log.w(TAG, "MANAGE_EXTERNAL_STORAGE permission not granted")
-                    showStoragePermissionDialog()
-                }
-            } else {
-                
-                if (androidx.core.content.ContextCompat.checkSelfPermission(
-                                this,
-                                android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                        ) != android.content.pm.PackageManager.PERMISSION_GRANTED ||
-                                androidx.core.content.ContextCompat.checkSelfPermission(
-                                        this,
-                                        android.Manifest.permission.READ_EXTERNAL_STORAGE
-                                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-                ) {
-                    Log.w(
-                            TAG,
-                            "Storage permissions not granted on Android ${android.os.Build.VERSION.SDK_INT}"
-                    )
-                    requestLegacyStoragePermission()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking storage permission: ${e.message}")
-        }
-    }
-
-    private fun requestLegacyStoragePermission() {
-        try {
-            androidx.core.app.ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(
-                            android.Manifest.permission.READ_EXTERNAL_STORAGE,
-                            android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-                    ),
-                    STORAGE_PERMISSION_REQUEST_CODE
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Error requesting storage permission: ${e.message}")
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-            requestCode: Int,
-            permissions: Array<out String>,
-            grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == STORAGE_PERMISSION_REQUEST_CODE) {
-            if (grantResults.isNotEmpty() &&
-                            grantResults.all {
-                                it == android.content.pm.PackageManager.PERMISSION_GRANTED
-                            }
-            ) {
-                Log.d(TAG, "Storage permissions granted")
-            } else {
-                Log.w(TAG, "Storage permissions denied")
-            }
-        }
-    }
-
-    private fun showStoragePermissionDialog() {
-        try {
-            MaterialDialog(this).show {
-                title(text = "Storage Permission Required")
-                message(
-                        text =
-                                "This app needs 'All Files Access' permission to properly run sandboxed apps. Without this permission, some apps may not work correctly.\n\nPlease grant permission in the next screen."
-                )
-                positiveButton(text = "Grant Permission") { openAllFilesAccessSettings() }
-                negativeButton(text = "Later") { Log.w(TAG, "User postponed storage permission") }
-                cancelable(false)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error showing storage permission dialog: ${e.message}")
-        }
-    }
-
-    private fun openAllFilesAccessSettings() {
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                val intent =
-                        Intent(
-                                android.provider.Settings
-                                        .ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
-                        )
-                intent.data = Uri.parse("package:$packageName")
-                storagePermissionResult.launch(intent)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error opening storage settings: ${e.message}")
-            
-            try {
-                val intent =
-                        Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                storagePermissionResult.launch(intent)
-            } catch (e2: Exception) {
-                Log.e(TAG, "Error opening fallback storage settings: ${e2.message}")
-            }
-        }
-    }
-
-    private val storagePermissionResult =
-            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-                try {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                        if (android.os.Environment.isExternalStorageManager()) {
-                            Log.d(TAG, "Storage permission granted!")
-                        } else {
-                            Log.w(TAG, "Storage permission still not granted")
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling storage permission result: ${e.message}")
-                }
-            }
-
-    
-    private fun checkVpnPermission() {
-        try {
-            val vpnEnabled = try {
-                AppManager.mBlackBoxLoader.useVpnNetwork()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error reading VPN setting: ${e.message}")
-                false
-            }
-
-            if (android.os.Build.VERSION.SDK_INT >= 34) {
-                if (vpnEnabled) {
-                    Log.w(TAG, "VPN setting enabled on SDK>=34; forcing disable (unsupported)")
-                    try {
-                        AppManager.mBlackBoxLoader.invalidUseVpnNetwork(false)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error disabling VPN setting: ${e.message}")
-                    }
-                }
-                return
-            }
-
-            if (!vpnEnabled) {
-                Log.d(TAG, "VPN setting disabled; skipping VPN permission")
-                return
-            }
-
-            val vpnIntent = VpnService.prepare(this)
-            if (vpnIntent != null) {
-                // Per UX requirement: only prompt for VPN permission when user explicitly
-                // enables the toggle in Settings. If permission is missing at startup,
-                // disable the toggle and let the user re-enable it to trigger the prompt.
-                Log.w(TAG, "VPN setting enabled but permission missing; disabling setting")
-                try {
-                    AppManager.mBlackBoxLoader.invalidUseVpnNetwork(false)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error disabling VPN setting: ${e.message}")
-                }
-            } else {
-                
-                Log.d(TAG, "VPN permission already granted")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking VPN permission: ${e.message}")
-        }
-    }
-
-    private val vpnPermissionResult =
-            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                try {
-                    if (result.resultCode == RESULT_OK) {
-                        Log.d(TAG, "VPN permission granted!")
-                        
-                    } else {
-                        Log.w(TAG, "VPN permission denied by user")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error handling VPN permission result: ${e.message}")
-                }
-            }
 
     private fun showErrorDialog(message: String) {
         try {

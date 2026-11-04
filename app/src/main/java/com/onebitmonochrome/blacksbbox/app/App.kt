@@ -41,6 +41,11 @@ class App : Application() {
             }
 
             mContext = base!!
+            try {
+                AppFreezeManager.attachHost(base)
+            } catch (e: RuntimeException) {
+                Log.w("App", "Host preferences unavailable during startup", e)
+            }
 
             try {
                 AppManager.doAttachBaseContext(base)

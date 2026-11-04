@@ -38,7 +38,7 @@ class ProxyManagerFragment : PreferenceFragmentCompat() {
         try {
             val sources = ProxyConfig.sources()
             if (sourceId == null) {
-                (requireActivity() as SettingActivity).setProxyPageTitle(getString(R.string.proxy_mine))
+                (requireActivity() as SettingActivity).setPageTitle(getString(R.string.proxy_mine))
                 screen.action(getString(R.string.proxy_new)) { editProxySource(null, ::refresh) }
                 if (sources.isEmpty()) {
                     requireActivity().finish()
@@ -52,7 +52,7 @@ class ProxyManagerFragment : PreferenceFragmentCompat() {
             } else {
                 val source = sources.find { it.id == sourceId }
                 if (source == null) { requireActivity().finish(); return }
-                (requireActivity() as SettingActivity).setProxyPageTitle(source.label)
+                (requireActivity() as SettingActivity).setPageTitle(source.label)
                 screen.action(getString(R.string.proxy_edit)) { editProxySource(source, ::refresh) }
                 screen.action(getString(R.string.proxy_delete)) { confirmDelete(source, null) }
                 val group = PreferenceCategory(ctx).apply { setTitle(R.string.proxy_nodes) }

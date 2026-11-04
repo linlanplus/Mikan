@@ -13,6 +13,9 @@ public final class BlackBoxMediaContract {
     public static final String PUBLIC_AUTHORITY = "media";
     public static final String PRIVATE_AUTHORITY_SUFFIX = ".blackbox.MediaProvider";
     public static final String USER_ID_QUERY_PARAM = "bbx_user_id";
+    public static final String MEDIA_DOCUMENTS = "com.android.providers.media.documents";
+    private static final String DOCUMENTS_QUERY_PARAM = "bbx_media_document";
+    public static final String GUEST_PACKAGE = "bbx_package";
     public static final String EXTERNAL_VOLUME = "external";
 
     public static final String ROOT_IMAGES = "DCIM/BlackBoxGallery/";
@@ -59,19 +62,21 @@ public final class BlackBoxMediaContract {
         if (uri == null) {
             return null;
         }
-        return uri.buildUpon()
-                .authority(getPrivateAuthority())
-                .appendQueryParameter(USER_ID_QUERY_PARAM, String.valueOf(userId))
-                .build();
+        Uri.Builder builder = toPublicUri(uri).buildUpon().authority(getPrivateAuthority())
+                .appendQueryParameter(USER_ID_QUERY_PARAM, String.valueOf(userId));
+        if (MEDIA_DOCUMENTS.equals(uri.getAuthority())) builder.appendQueryParameter(DOCUMENTS_QUERY_PARAM, "1");
+        return builder.build();
     }
 
     public static Uri toPublicUri(Uri uri) {
         if (uri == null) {
             return null;
         }
-        Uri.Builder builder = uri.buildUpon().authority(PUBLIC_AUTHORITY).clearQuery();
+        String authority = getPrivateAuthority().equals(uri.getAuthority()) && uri.getBooleanQueryParameter(DOCUMENTS_QUERY_PARAM, false)
+                ? MEDIA_DOCUMENTS : PUBLIC_AUTHORITY;
+        Uri.Builder builder = uri.buildUpon().authority(authority).clearQuery();
         for (String name : uri.getQueryParameterNames()) {
-            if (USER_ID_QUERY_PARAM.equals(name)) {
+            if (USER_ID_QUERY_PARAM.equals(name) || GUEST_PACKAGE.equals(name) || DOCUMENTS_QUERY_PARAM.equals(name)) {
                 continue;
             }
             for (String value : uri.getQueryParameters(name)) {
@@ -137,10 +142,14 @@ public final class BlackBoxMediaContract {
         return mediaTypeForMime(mimeType) != MediaStore.Files.FileColumns.MEDIA_TYPE_NONE;
     }
 
+    private static boolean isExternalVolume(String volume) {
+        return !TextUtils.isEmpty(volume) && !"internal".equals(volume);
+    }
+
     public static boolean isImagesUri(Uri uri) {
         return uri != null
                 && uri.getPathSegments().size() >= 3
-                && EXTERNAL_VOLUME.equals(uri.getPathSegments().get(0))
+                && isExternalVolume(uri.getPathSegments().get(0))
                 && "images".equals(uri.getPathSegments().get(1))
                 && "media".equals(uri.getPathSegments().get(2));
     }
@@ -148,7 +157,7 @@ public final class BlackBoxMediaContract {
     public static boolean isVideosUri(Uri uri) {
         return uri != null
                 && uri.getPathSegments().size() >= 3
-                && EXTERNAL_VOLUME.equals(uri.getPathSegments().get(0))
+                && isExternalVolume(uri.getPathSegments().get(0))
                 && "video".equals(uri.getPathSegments().get(1))
                 && "media".equals(uri.getPathSegments().get(2));
     }
@@ -156,7 +165,7 @@ public final class BlackBoxMediaContract {
     public static boolean isFilesUri(Uri uri) {
         return uri != null
                 && uri.getPathSegments().size() >= 2
-                && EXTERNAL_VOLUME.equals(uri.getPathSegments().get(0))
+                && isExternalVolume(uri.getPathSegments().get(0))
                 && "file".equals(uri.getPathSegments().get(1));
     }
 

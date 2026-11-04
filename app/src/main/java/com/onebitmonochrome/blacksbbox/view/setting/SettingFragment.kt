@@ -3,7 +3,6 @@ package com.onebitmonochrome.blacksbbox.view.setting
 import android.content.Intent
 import android.net.Uri
 import top.niunaijun.blackbox.fake.network.ProxyConfig
-import android.net.VpnService
 import android.os.Bundle
 import android.os.Build
 import android.view.View
@@ -20,7 +19,6 @@ import com.onebitmonochrome.blacksbbox.util.UpdateChecker
 import androidx.core.content.FileProvider
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.PreferenceManager
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.SwitchPreferenceCompat
@@ -46,25 +44,13 @@ class SettingFragment : PreferenceFragmentCompat() {
         private const val LICENSES = "licenses"
     }
 
-    private val vpnPermissionResult =
-            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                val vpnPref =
-                        findPreference<SwitchPreferenceCompat>("use_vpn_network")
-                                ?: return@registerForActivityResult
-                if (result.resultCode == android.app.Activity.RESULT_OK) {
-                    AppManager.mBlackBoxLoader.invalidUseVpnNetwork(true)
-                    vpnPref.isChecked = true
-                    toast(R.string.restart_module)
-                } else {
-                    AppManager.mBlackBoxLoader.invalidUseVpnNetwork(false)
-                    vpnPref.isChecked = false
-                    toast(R.string.vpn_permission_denied)
-                }
-            }
-
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.setting, rootKey)
 
+        findPreference<Preference>("album_management")?.setOnPreferenceClickListener {
+            SettingActivity.openAlbums(requireContext())
+            true
+        }
         initGms()
 
         initTheme()
@@ -72,19 +58,6 @@ class SettingFragment : PreferenceFragmentCompat() {
 
         initHostSigningFallback()
         initInstantFreezeButton()
-
-        if (Build.VERSION.SDK_INT >= 34) {
-            val vpnPref = findPreference<SwitchPreferenceCompat>("use_vpn_network")
-            if (vpnPref != null) {
-                try {
-                    AppManager.mBlackBoxLoader.invalidUseVpnNetwork(false)
-                } catch (_: Exception) {
-                }
-                vpnPref.isChecked = false
-                vpnPref.isEnabled = false
-                vpnPref.summary = getString(R.string.vpn_not_supported_android14)
-            }
-        }
 
         invalidHideState {
             val rootHidePreference: Preference = (findPreference("root_hide")!!)
@@ -98,13 +71,6 @@ class SettingFragment : PreferenceFragmentCompat() {
             val mDaemonEnable = AppManager.mBlackBoxLoader.daemonEnable()
             daemonPreference.setDefaultValue(mDaemonEnable)
             daemonPreference
-        }
-
-        invalidHideState {
-            val vpnPreference: Preference = (findPreference("use_vpn_network")!!)
-            val mUseVpnNetwork = AppManager.mBlackBoxLoader.useVpnNetwork()
-            vpnPreference.setDefaultValue(mUseVpnNetwork)
-            vpnPreference
         }
 
         invalidHideState {
@@ -232,15 +198,10 @@ class SettingFragment : PreferenceFragmentCompat() {
     private fun initGms() {
         val gmsManagerPreference: Preference = (findPreference("gms_manager")!!)
 
-        if (BlackBoxCore.get().isSupportGms) {
-
-            gmsManagerPreference.setOnPreferenceClickListener {
-                GmsManagerActivity.start(requireContext())
-                true
-            }
-        } else {
-            gmsManagerPreference.summary = getString(R.string.no_gms)
-            gmsManagerPreference.isEnabled = false
+        if (!BlackBoxCore.get().isSupportGms) gmsManagerPreference.setSummary(R.string.no_gms)
+        gmsManagerPreference.setOnPreferenceClickListener {
+            GmsManagerActivity.start(requireContext())
+            true
         }
     }
 
@@ -255,33 +216,6 @@ class SettingFragment : PreferenceFragmentCompat() {
                 }
                 "daemon_enable" -> {
                     AppManager.mBlackBoxLoader.invalidDaemonEnable(tmpHide)
-                }
-                "use_vpn_network" -> {
-                    if (Build.VERSION.SDK_INT >= 34) {
-                        try {
-                            AppManager.mBlackBoxLoader.invalidUseVpnNetwork(false)
-                        } catch (_: Exception) {
-                        }
-                        toast(R.string.vpn_not_supported_android14)
-                        return@setOnPreferenceChangeListener false
-                    }
-
-                    val enableVpn = tmpHide
-                    if (!enableVpn) {
-                        AppManager.mBlackBoxLoader.invalidUseVpnNetwork(false)
-                        toast(R.string.restart_module)
-                        return@setOnPreferenceChangeListener true
-                    }
-
-                    val vpnIntent = VpnService.prepare(requireContext())
-                    if (vpnIntent == null) {
-                        AppManager.mBlackBoxLoader.invalidUseVpnNetwork(true)
-                        toast(R.string.restart_module)
-                        return@setOnPreferenceChangeListener true
-                    }
-
-                    vpnPermissionResult.launch(vpnIntent)
-                    return@setOnPreferenceChangeListener false
                 }
                 "disable_flag_secure" -> {
                     AppManager.mBlackBoxLoader.invalidDisableFlagSecure(tmpHide)

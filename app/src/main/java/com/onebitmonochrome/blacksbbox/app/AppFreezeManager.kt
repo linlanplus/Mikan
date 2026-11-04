@@ -1,6 +1,7 @@
 package com.onebitmonochrome.blacksbbox.app
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -20,13 +21,22 @@ object AppFreezeManager {
     private val startedActivityCounts = ConcurrentHashMap<String, Int>()
     private val pendingStops = ConcurrentHashMap<String, Runnable>()
 
+    private var hostPreferences: SharedPreferences? = null
+
     @Suppress("DEPRECATION")
-    private fun prefs() =
-            App.getContext()
-                    .getSharedPreferences(
-                            PREFS_NAME,
-                            Context.MODE_PRIVATE or Context.MODE_MULTI_PROCESS
-                    )
+    private fun hostPrefs(context: Context) =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE or Context.MODE_MULTI_PROCESS)
+
+    fun attachHost(context: Context) {
+        // Resolve credential-protected preferences while this process still has the Android profile's identity.
+        hostPreferences = hostPrefs(context)
+    }
+
+    private fun prefs(): SharedPreferences = try {
+        hostPrefs(App.getContext())
+    } catch (e: SecurityException) {
+        hostPreferences ?: throw e
+    }
 
     fun isGlobalAutoFreezeEnabled(): Boolean {
         return prefs().getBoolean(KEY_GLOBAL_AUTO_FREEZE, false)

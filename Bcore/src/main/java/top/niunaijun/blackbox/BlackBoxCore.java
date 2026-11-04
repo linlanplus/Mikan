@@ -1240,7 +1240,7 @@ public class BlackBoxCore extends ClientConfiguration {
 
     public boolean uninstallGms(int userId) {
         GmsCore.uninstallGApps(userId);
-        return !GmsCore.isInstalledGoogleService(userId);
+        return !GmsCore.hasGmsTraces(userId);
     }
 
     public boolean wipeGms(int userId) {
@@ -1271,6 +1271,10 @@ public class BlackBoxCore extends ClientConfiguration {
     }
 
     @Override
+    public int getGalleryOwner(int userId, String packageName) {
+        return mClientConfiguration.getGalleryOwner(userId, packageName);
+    }
+
     public boolean isHideRoot() {
         return mClientConfiguration.isHideRoot();
     }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+    <SwitchPreferenceCompat
+        app:key="system_gallery"
+        app:title="@string/system_gallery_title"
+        app:summary="@string/system_gallery_summary"
+        app:persistent="false" />
+    <Preference
+        app:key="selected_photos"
+        app:title="@string/album_grant_selected"
+        app:summary="@string/album_grant_summary" />
+</PreferenceScreen>

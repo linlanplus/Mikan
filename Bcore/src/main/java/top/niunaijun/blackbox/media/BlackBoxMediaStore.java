@@ -3,6 +3,7 @@ package top.niunaijun.blackbox.media;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
+import android.database.DatabaseUtils;
 import android.database.MatrixCursor;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
@@ -18,12 +19,17 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import android.util.Base64;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import top.niunaijun.blackbox.core.env.BEnvironment;
 import top.niunaijun.blackbox.utils.BzFileUtils;
@@ -32,7 +38,17 @@ import top.niunaijun.blackbox.utils.Slog;
 public final class BlackBoxMediaStore {
     private static final String TAG = "BlackBoxMediaStore";
     private static final String DATABASE_NAME = "media-index.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
+
+    private static final String SELECTED_DIR = ".mikan-selected";
+    // ContentResolver callers supply SQL fragments. Only a balanced, single expression may
+    // be appended to the gallery owner's predicate; subqueries could read another album.
+    private static final Pattern SQL_TOKEN = Pattern.compile(
+            "'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|[a-zA-Z_][a-zA-Z_0-9]*|\\s+|[0-9]+|--|/\\*|[()<>!=?,.+*/%&|~-]");
+    private static final Pattern SQL_WORD = Pattern.compile(
+            "and|or|not|in|is|isnull|notnull|null|like|glob|escape|between|true|false|collate|nocase|binary|localized|"
+            + "asc|desc|lower|upper|length|substr|coalesce|ifnull|strftime|date|datetime|cast|as|integer|text|"
+            + "case|when|then|else|end|volume_name|is_favorite|is_trashed|is_download");
 
     private static final Object DB_LOCK = new Object();
     private static SQLiteDatabase sDatabase;
@@ -46,6 +62,42 @@ public final class BlackBoxMediaStore {
 
     public static File getVideosRoot(int userId) {
         return new File(BEnvironment.getExternalUserDir(userId), BlackBoxMediaContract.ROOT_VIDEOS);
+    }
+
+    /** Keep IDs referenced by already-installed guests while adopting their two legacy roots. */
+    public static boolean adoptLegacyGallery(int oldUser, int album) {
+        synchronized (DB_LOCK) {
+            SQLiteDatabase db = getDatabaseLocked();
+            db.beginTransaction();
+            try {
+                for (boolean video : new boolean[]{false, true}) {
+                    File oldRoot = video ? getVideosRoot(oldUser) : getImagesRoot(oldUser);
+                    File newRoot = video ? getVideosRoot(album) : getImagesRoot(album);
+                    File target = new File(newRoot, "legacy-" + oldUser);
+                    if (oldRoot.exists()) {
+                        String[] files = oldRoot.list();
+                        if (files == null) return false;
+                        if (files.length != 0) {
+                            if ((!newRoot.isDirectory() && !newRoot.mkdirs()) || !oldRoot.renameTo(target)) return false;
+                        }
+                    }
+                    if (target.isDirectory()) {
+                        // A retry after the rename finishes the same database transaction.
+                        String old = oldRoot.getAbsolutePath();
+                        String to = target.getAbsolutePath();
+                        db.execSQL("UPDATE media_entries SET user_id=?, _data=? || substr(_data, ?), "
+                                        + "canonical_path=? || substr(canonical_path, ?), root_path=? "
+                                        + "WHERE user_id=? AND root_path=?",
+                                new Object[]{album, to, old.length() + 1, to, old.length() + 1, newRoot.getAbsolutePath(), oldUser, old});
+                    }
+                }
+                db.delete("scan_state", "user_id IN (?,?)", new String[]{String.valueOf(oldUser), String.valueOf(album)});
+                db.setTransactionSuccessful();
+                return true;
+            } finally {
+                db.endTransaction();
+            }
+        }
     }
 
     public static List<BlackBoxMediaEntry> listMediaEntries(int userId) {
@@ -72,6 +124,35 @@ public final class BlackBoxMediaStore {
     }
 
     public static BlackBoxMediaEntry importMedia(Context context, int userId, Uri sourceUri, String mimeHint) throws IOException {
+        return copyMedia(context, userId, sourceUri, mimeHint, false);
+    }
+
+    public static BlackBoxMediaEntry grantSelectedImage(Context context, int owner, Uri source) throws IOException {
+        if (source == null || !"content".equals(source.getScheme())) throw new IOException("Invalid selected image");
+        return copyMedia(context, owner, source, null, true);
+    }
+
+    public static boolean isSelectedImage(BlackBoxMediaEntry entry) {
+        File parent = new File(entry.getFilePath()).getParentFile();
+        return parent != null && new File(getImagesRoot(entry.getUserId()), SELECTED_DIR).equals(parent.getParentFile());
+    }
+
+    public static boolean revokeSelectedImage(int owner, long id) {
+        synchronized (DB_LOCK) {
+            BlackBoxMediaEntry entry = getEntry(owner, id);
+            if (entry == null || !isSelectedImage(entry)) return false;
+            File file = new File(entry.getFilePath());
+            if (!file.delete() && file.exists()) return false;
+            getDatabaseLocked().delete(BlackBoxMediaContract.TABLE_MEDIA, "user_id=? AND _id=?",
+                    new String[]{String.valueOf(owner), String.valueOf(id)});
+            file.getParentFile().delete();
+            refreshStoredState(owner, entry.getMediaType());
+            return true;
+        }
+    }
+
+    private static BlackBoxMediaEntry copyMedia(Context context, int userId, Uri sourceUri, String mimeHint,
+                                                boolean selected) throws IOException {
         if (sourceUri == null) {
             throw new IOException("Missing source URI");
         }
@@ -88,6 +169,7 @@ public final class BlackBoxMediaStore {
             resolvedMime = guessMimeFromName(displayName);
         }
         int mediaType = BlackBoxMediaContract.mediaTypeForMime(resolvedMime);
+        if (selected && mediaType != MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE) throw new IOException("Select an image");
         if (mediaType == MediaStore.Files.FileColumns.MEDIA_TYPE_NONE) {
             throw new IOException("Only images and videos are supported");
         }
@@ -100,15 +182,42 @@ public final class BlackBoxMediaStore {
         }
 
         String safeName = buildSafeDisplayName(displayName, resolvedMime, mediaType);
-        File target = uniqueFile(targetDir, safeName);
-        InputStream inputStream = context.getContentResolver().openInputStream(sourceUri);
-        if (inputStream == null) {
-            throw new IOException("Unable to open source URI");
+        // Publish only complete files. Concurrent shares can use the same display name.
+        MessageDigest digest = null;
+        if (selected) {
+            try { digest = MessageDigest.getInstance("SHA-256"); }
+            catch (NoSuchAlgorithmException e) { throw new IOException(e); }
         }
-        BzFileUtils.copyFile(inputStream, target);
-        BlackBoxMediaEntry entry = upsertFile(userId, target, mediaType, resolvedMime);
-        refreshStoredState(userId, entry.getMediaType());
-        return entry;
+        File staging = File.createTempFile(".share-", ".tmp", targetDir);
+        try {
+            try (InputStream in = context.getContentResolver().openInputStream(sourceUri);
+                 FileOutputStream out = new FileOutputStream(staging)) {
+                if (in == null) throw new IOException("Unable to open source URI");
+                byte[] buffer = new byte[32768];
+                int count;
+                while ((count = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, count);
+                    if (digest != null) digest.update(buffer, 0, count);
+                }
+            }
+            synchronized (DB_LOCK) {
+                File target = null;
+                if (digest != null) {
+                    String key = Base64.encodeToString(digest.digest(), Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
+                    targetDir = new File(new File(targetDir, SELECTED_DIR), key);
+                    if (!targetDir.isDirectory() && !targetDir.mkdirs()) throw new IOException("Cannot create selected album");
+                    File[] existing = targetDir.listFiles(File::isFile);
+                    if (existing != null && existing.length > 0) target = existing[0];
+                }
+                if (target == null) target = uniqueFile(targetDir, safeName);
+                if (!staging.renameTo(target)) throw new IOException("Cannot finish media import");
+                BlackBoxMediaEntry entry = upsertFile(userId, target, mediaType, resolvedMime);
+                refreshStoredState(userId, entry.getMediaType());
+                return entry;
+            }
+        } finally {
+            staging.delete();
+        }
     }
 
     public static void rescanUser(int userId) {
@@ -120,14 +229,15 @@ public final class BlackBoxMediaStore {
         }
     }
 
-    public static Cursor query(int userId, Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+    public static Cursor query(int userId, boolean systemGallery, Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
         int mediaType = resolveMediaType(uri);
         ensureFresh(userId, mediaType);
         synchronized (DB_LOCK) {
             SQLiteDatabase database = getDatabaseLocked();
-            String finalSelection = buildSelection(uri, userId, mediaType, selection);
+            if (systemGallery) systemGallery = SystemGallery.refresh(database);
+            String finalSelection = buildSelection(uri, userId, mediaType, selection, systemGallery);
             String[] finalSelectionArgs = buildSelectionArgs(uri, userId, selectionArgs);
-            String orderBy = TextUtils.isEmpty(sortOrder)
+            String orderBy = TextUtils.isEmpty(sortOrder) || !safeFragment(sortOrder, true)
                     ? BlackBoxMediaContract.COL_DATE_MODIFIED + " DESC, " + BlackBoxMediaContract.COL_ID + " DESC"
                     : sortOrder;
             try {
@@ -147,7 +257,7 @@ public final class BlackBoxMediaStore {
                     return buildCompatCursor(projection, entries);
                 } catch (Throwable secondError) {
                     Slog.w(TAG, "Media query broad fallback: " + secondError.getMessage());
-                    String broadSelection = buildSelection(uri, userId, mediaType, null);
+                    String broadSelection = buildSelection(uri, userId, mediaType, null, systemGallery);
                     List<BlackBoxMediaEntry> entries = queryEntriesLocked(database, broadSelection, null, null);
                     return buildCompatCursor(projection, entries);
                 }
@@ -159,23 +269,24 @@ public final class BlackBoxMediaStore {
         if (projection == null || projection.length == 0) {
             return null;
         }
-        ArrayList<String> supported = new ArrayList<>();
-        for (String column : projection) {
-            if (isStoredColumn(column)) {
-                supported.add(column);
-            }
+        String[] columns = projection.clone();
+        for (int i = 0; i < columns.length; i++) {
+            if (isStoredColumn(columns[i])) continue;
+            String column = columns[i];
+            if (column == null || !column.matches("[a-zA-Z_][a-zA-Z_0-9]*")) throw new IllegalArgumentException("Unsupported media projection");
+            String value = "volume_name".equals(column) ? "'external'"
+                    : ("is_favorite".equals(column) || "is_trashed".equals(column)) ? "0" : "NULL";
+            columns[i] = value + " AS " + column;
         }
-        if (supported.size() == projection.length) {
-            return projection;
-        }
-        return null;
+        return columns;
     }
 
     private static boolean isStoredColumn(String column) {
         if (TextUtils.isEmpty(column)) {
             return false;
         }
-        return BlackBoxMediaContract.COL_ID.equals(column)
+        return "orientation".equals(column)
+                || BlackBoxMediaContract.COL_ID.equals(column)
                 || BlackBoxMediaContract.COL_USER_ID.equals(column)
                 || BlackBoxMediaContract.COL_MEDIA_TYPE.equals(column)
                 || BlackBoxMediaContract.COL_DISPLAY_NAME.equals(column)
@@ -281,6 +392,19 @@ public final class BlackBoxMediaStore {
         }
     }
 
+    static Uri systemSource(Uri uri) {
+        long id = BlackBoxMediaContract.getIdFromUri(uri);
+        if (id <= 0) return null;
+        synchronized (DB_LOCK) {
+            SQLiteDatabase db = getDatabaseLocked();
+            if (!SystemGallery.refresh(db)) return null;
+            try (Cursor c = db.query("media_entries", new String[]{"canonical_path"},
+                    buildSelection(uri, SystemGallery.OWNER, resolveMediaType(uri), null, false), null, null, null, null)) {
+                return c.moveToFirst() ? Uri.parse(c.getString(0)) : null;
+            }
+        }
+    }
+
     public static Uri insert(int userId, Uri uri, ContentValues values) throws IOException {
         int mediaType = resolveMediaType(uri);
         if (mediaType == MediaStore.Files.FileColumns.MEDIA_TYPE_NONE) {
@@ -357,10 +481,16 @@ public final class BlackBoxMediaStore {
     }
 
     public static int update(int userId, Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+        values = new ContentValues(values);
+        for (String column : new String[]{"_id", "user_id", "_data", "canonical_path", "root_path"}) values.remove(column);
+        if (values.size() == 0) return 0;
+        for (String column : values.keySet()) {
+            if (!isStoredColumn(column)) throw new IllegalArgumentException("Unsupported media update");
+        }
         int mediaType = resolveMediaType(uri);
         synchronized (DB_LOCK) {
             SQLiteDatabase database = getDatabaseLocked();
-            String finalSelection = buildSelection(uri, userId, mediaType, selection);
+            String finalSelection = writableSelection(uri, userId, mediaType, selection);
             String[] finalSelectionArgs = buildSelectionArgs(uri, userId, selectionArgs);
             int updated = database.update(BlackBoxMediaContract.TABLE_MEDIA, values, finalSelection, finalSelectionArgs);
             if (updated > 0) {
@@ -374,7 +504,7 @@ public final class BlackBoxMediaStore {
         int mediaType = resolveMediaType(uri);
         synchronized (DB_LOCK) {
             SQLiteDatabase database = getDatabaseLocked();
-            String finalSelection = buildSelection(uri, userId, mediaType, selection);
+            String finalSelection = writableSelection(uri, userId, mediaType, selection);
             String[] finalSelectionArgs = buildSelectionArgs(uri, userId, selectionArgs);
             List<BlackBoxMediaEntry> entries = queryEntriesLocked(database, finalSelection, finalSelectionArgs, null);
             for (BlackBoxMediaEntry entry : entries) {
@@ -397,6 +527,7 @@ public final class BlackBoxMediaStore {
         if (!file.exists()) {
             throw new IOException("Media file is missing");
         }
+        if (!"r".equals(mode) && isSelectedImage(entry)) throw new IOException("Selected photo is read-only");
         return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode));
     }
 
@@ -594,9 +725,43 @@ public final class BlackBoxMediaStore {
         );
     }
 
-    private static String buildSelection(Uri uri, int userId, int mediaType, String selection) {
+    private static boolean safeFragment(String sql, boolean sorting) {
+        if (TextUtils.isEmpty(sql)) return true;
+        Matcher tokens = SQL_TOKEN.matcher(sql);
+        int end = 0, depth = 0;
+        boolean expectList = false;
+        while (tokens.find()) {
+            if (tokens.start() != end) return false;
+            end = tokens.end();
+            String token = tokens.group();
+            char c = token.charAt(0);
+            if (Character.isWhitespace(c)) continue;
+            if (expectList && c != '(') return false;
+            expectList = false;
+            if (c == '(') depth++;
+            else if (c == ')' && --depth < 0) return false;
+            else if (token.equals("--") || token.equals("/*")) return false;
+            else if (Character.isLetter(c) || c == '_') {
+                String word = token.toLowerCase(Locale.ROOT);
+                if (!isStoredColumn(word) && !SQL_WORD.matcher(word).matches()
+                        && !(sorting && (word.equals("limit") || word.equals("offset")))) return false;
+                expectList = word.equals("in");
+            }
+        }
+        return end == sql.length() && depth == 0 && !expectList;
+    }
+
+    private static String writableSelection(Uri uri, int userId, int mediaType, String selection) {
+        String grants = new File(getImagesRoot(userId), SELECTED_DIR).getAbsolutePath() + File.separator;
+        return buildSelection(uri, userId, mediaType, selection, false)
+                + " AND instr(_data, " + DatabaseUtils.sqlEscapeString(grants) + ") != 1";
+    }
+
+    private static String buildSelection(Uri uri, int userId, int mediaType, String selection, boolean systemGallery) {
+        if (!safeFragment(selection, false)) throw new IllegalArgumentException("Unsupported media selection");
         StringBuilder builder = new StringBuilder();
-        builder.append(BlackBoxMediaContract.COL_USER_ID).append("=").append(userId);
+        if (systemGallery) builder.append("user_id IN (").append(userId).append(",").append(SystemGallery.OWNER).append(")");
+        else builder.append("user_id=").append(userId);
         if (mediaType != MediaStore.Files.FileColumns.MEDIA_TYPE_NONE) {
             builder.append(" AND ").append(BlackBoxMediaContract.COL_MEDIA_TYPE).append("=").append(mediaType);
         }
@@ -707,6 +872,18 @@ public final class BlackBoxMediaStore {
         if (database.getVersion() == DATABASE_VERSION) {
             return;
         }
+        database.beginTransaction();
+        try {
+            createMediaSchema(database);
+            database.execSQL("ALTER TABLE media_entries ADD COLUMN orientation INTEGER NOT NULL DEFAULT 0");
+            database.setVersion(DATABASE_VERSION);
+            database.setTransactionSuccessful();
+        } finally {
+            database.endTransaction();
+        }
+    }
+
+    private static void createMediaSchema(SQLiteDatabase database) {
         database.execSQL(
                 "CREATE TABLE IF NOT EXISTS " + BlackBoxMediaContract.TABLE_MEDIA + " ("
                         + BlackBoxMediaContract.COL_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -753,7 +930,6 @@ public final class BlackBoxMediaStore {
                         + "PRIMARY KEY (" + BlackBoxMediaContract.STATE_COL_USER_ID + ", " + BlackBoxMediaContract.STATE_COL_ROOT_PATH + ")"
                         + ")"
         );
-        database.setVersion(DATABASE_VERSION);
     }
 
     private static void ensureRoots(int userId) {
@@ -893,6 +1069,8 @@ public final class BlackBoxMediaStore {
         if (!normalized.endsWith("/")) {
             normalized = normalized + "/";
         }
+        List<String> parts = java.util.Arrays.asList(normalized.split("/"));
+        if (parts.contains("..") || parts.contains(SELECTED_DIR)) return fallback;
         if (!normalized.startsWith(BlackBoxMediaContract.ROOT_IMAGES)
                 && !normalized.startsWith(BlackBoxMediaContract.ROOT_VIDEOS)) {
             return fallback;
@@ -907,6 +1085,10 @@ public final class BlackBoxMediaStore {
 
     private static String buildRelativePath(int userId, File file, int mediaType) {
         File root = mediaType == MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO ? getVideosRoot(userId) : getImagesRoot(userId);
+        File parent = file.getParentFile();
+        if (parent != null && new File(root, SELECTED_DIR).equals(parent.getParentFile())) {
+            return BlackBoxMediaContract.defaultRelativePathForMediaType(mediaType);
+        }
         String rootPath = root.getAbsolutePath();
         String filePath = file.getParentFile() != null ? file.getParentFile().getAbsolutePath() : rootPath;
         String suffix = filePath.startsWith(rootPath) ? filePath.substring(rootPath.length()) : "";

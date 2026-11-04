@@ -19,16 +19,23 @@ class SettingActivity : BaseActivity() {
         if (savedInstanceState == null) {
             val page = if (intent.getBooleanExtra(PROXY_PAGE, false))
                 ProxyManagerFragment().apply { arguments = intent.extras }
+            else if (intent.getBooleanExtra(ALBUM_PAGE, false)) AlbumSettingsFragment()
             else SettingFragment()
             supportFragmentManager.beginTransaction().replace(R.id.fragment, page).commit()
         }
     }
 
-    internal fun setProxyPageTitle(text: String) {
+    internal fun setPageTitle(text: String) {
         viewBinding.toolbarLayout.toolbar.title = text
     }
 
     companion object {
+        private const val ALBUM_PAGE = "album_page"
+
+        fun openAlbums(context: Context) {
+            context.startActivity(Intent(context, SettingActivity::class.java).putExtra(ALBUM_PAGE, true))
+        }
+
         private const val PROXY_PAGE = "proxy_page"
         internal const val PROXY_SOURCE = "proxy_source"
 

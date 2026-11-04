@@ -7,18 +7,26 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-    <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
+    <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:textColor="@color/primary_text"
-            android:textSize="18sp"
-            tools:text="User1" />
+            android:layout_marginStart="16dp">
+        <TextView
+                android:id="@+id/tvTitle"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="@color/primary_text" android:textSize="18sp" />
+        <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:textColor="@color/secondary_text" android:textSize="13sp" />
+    </LinearLayout>
 
     <Switch
             android:id="@+id/checkbox"
+            android:clickable="false"
+            android:focusable="false"
             android:paddingStart="0dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

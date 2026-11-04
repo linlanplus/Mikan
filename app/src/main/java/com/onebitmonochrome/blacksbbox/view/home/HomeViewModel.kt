@@ -7,10 +7,12 @@ import android.util.Log
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.MutableLiveData
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.core.GmsCore
 import top.niunaijun.blackbox.fake.device.DeviceSpoofManager
 import com.onebitmonochrome.blacksbbox.app.App
 import com.onebitmonochrome.blacksbbox.data.AppsRepository
 import com.onebitmonochrome.blacksbbox.data.CloneStore
+import com.onebitmonochrome.blacksbbox.data.GmsRepository
 import com.onebitmonochrome.blacksbbox.view.base.BaseViewModel
 
 sealed class HomeItem {
@@ -59,7 +61,7 @@ class HomeViewModel(private val repo: AppsRepository) : BaseViewModel() {
                 val pkg = result.packageName
                 val appInfo = core.getInstalledApplications(0, userId)?.firstOrNull { it.packageName == pkg }
                 val baseName = appInfo?.let { repo.safeLoadAppLabel(it) } ?: pkg
-                CloneStore.addClone(userId, pkg, numberedLabel(pkg, baseName), groupId)
+                GmsRepository.addClone(userId, pkg, numberedLabel(pkg, baseName), groupId)?.let(resultLiveData::postValue)
             }
             load()
         }
@@ -68,12 +70,29 @@ class HomeViewModel(private val repo: AppsRepository) : BaseViewModel() {
     fun delete(clone: CloneStore.Clone) {
         launchOnUI {
             val core = BlackBoxCore.get()
+            if (!CloneStore.preserveGalleryBeforeUninstall(clone.userId)) {
+                resultLiveData.postValue(App.getContext().getString(com.onebitmonochrome.blacksbbox.R.string.gallery_preserve_failed))
+                return@launchOnUI
+            }
+            GmsRepository.rememberBeforeRemoval(clone.userId)
             repo.unInstall(clone.packageName, clone.userId, resultLiveData)
             try {
-                val stillUsed = core.users.any { it.id == clone.userId } &&
-                        !core.getInstalledApplications(0, clone.userId).isNullOrEmpty()
-                if (!stillUsed) {
-                    if (core.users.any { it.id == clone.userId }) core.deleteUser(clone.userId)
+                if (core.users.any { it.id == clone.userId }) {
+                    val remaining = core.getInstalledApplications(0, clone.userId)?.map { it.packageName }
+                    if (remaining == null || clone.packageName in remaining) {
+                        load()
+                        return@launchOnUI
+                    }
+                    // Remove auto-installed companions with the last app, while keeping explicit clones.
+                    val onlyCompanions = remaining.isNotEmpty() && remaining.all {
+                        GmsCore.isGoogleAppOrService(it) &&
+                                CloneStore.clone(CloneStore.cloneKey(clone.userId, it)) == null
+                    }
+                    if (remaining.isEmpty() || (onlyCompanions && core.uninstallGms(clone.userId))) {
+                        core.deleteUser(clone.userId)
+                        DeviceSpoofManager.resetToDefaults(clone.userId)
+                    }
+                } else {
                     DeviceSpoofManager.resetToDefaults(clone.userId)
                 }
             } catch (e: Exception) {
@@ -81,6 +100,13 @@ class HomeViewModel(private val repo: AppsRepository) : BaseViewModel() {
             }
             runCatching { top.niunaijun.blackbox.fake.network.ProxyConfig.forget(clone.userId, clone.packageName) }
             CloneStore.removeClone(clone.key)
+            load()
+        }
+    }
+
+    fun moveToGroup(key: String, groupId: Long) {
+        launchOnUI {
+            GmsRepository.move(key, groupId)?.let(resultLiveData::postValue)
             load()
         }
     }

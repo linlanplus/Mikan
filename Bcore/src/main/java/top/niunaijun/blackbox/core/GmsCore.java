@@ -1,10 +1,8 @@
 package top.niunaijun.blackbox.core;
 
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import top.niunaijun.blackbox.BlackBoxCore;
@@ -49,7 +47,7 @@ public class GmsCore {
         return GOOGLE_APP.contains(str) || GOOGLE_SERVICE.contains(str);
     }
 
-    private static InstallResult installPackages(Set<String> list, int userId) {
+    private static InstallResult installPackages(Set<String> list, int userId, Set<String> added) {
         BlackBoxCore blackBoxCore = BlackBoxCore.get();
         for (String packageName : list) {
             if (blackBoxCore.isInstalled(packageName, userId)) {
@@ -65,6 +63,7 @@ public class GmsCore {
             if (!installResult.success) {
                 return installResult;
             }
+            added.add(packageName);
         }
         return new InstallResult();
     }
@@ -72,7 +71,7 @@ public class GmsCore {
     private static void uninstallPackages(Set<String> list, int userId) {
         BlackBoxCore blackBoxCore = BlackBoxCore.get();
         for (String packageName : list) {
-            blackBoxCore.uninstallPackageAsUser(packageName, userId);
+            if (blackBoxCore.isInstalled(packageName, userId)) blackBoxCore.uninstallPackageAsUser(packageName, userId);
         }
     }
 
@@ -82,9 +81,10 @@ public class GmsCore {
         googleApps.addAll(GOOGLE_SERVICE);
         googleApps.addAll(GOOGLE_APP);
 
-        InstallResult installResult = installPackages(googleApps, userId);
+        Set<String> added = new HashSet<>();
+        InstallResult installResult = installPackages(googleApps, userId, added);
         if (!installResult.success) {
-            uninstallGApps(userId);
+            uninstallPackages(added, userId);
             return installResult;
         }
         return installResult;
@@ -111,20 +111,6 @@ public class GmsCore {
             }
         }
 
-        try {
-            List<PackageInfo> installed = blackBoxCore.getInstalledPackages(0, userId);
-            for (PackageInfo pi : installed) {
-                if (pi == null || pi.packageName == null) {
-                    continue;
-                }
-                String pkg = pi.packageName;
-                if (VENDING_PKG.equals(pkg) || pkg.startsWith("com.google.android.")) {
-                    return true;
-                }
-            }
-        } catch (Throwable ignored) {
-        }
-
         return false;
     }
 
@@ -139,30 +125,16 @@ public class GmsCore {
         toRemove.addAll(GOOGLE_SERVICE);
         toRemove.addAll(GOOGLE_APP);
 
-        try {
-            List<PackageInfo> installed = blackBoxCore.getInstalledPackages(0, userId);
-            for (PackageInfo pi : installed) {
-                if (pi == null || pi.packageName == null) {
-                    continue;
-                }
-                String pkg = pi.packageName;
-                if (VENDING_PKG.equals(pkg) || pkg.startsWith("com.google.android.")) {
-                    toRemove.add(pkg);
-                }
-            }
-        } catch (Throwable ignored) {
-        }
-
         for (String pkg : toRemove) {
             try {
-                blackBoxCore.clearPackage(pkg, userId);
+                if (blackBoxCore.isInstalled(pkg, userId)) blackBoxCore.clearPackage(pkg, userId);
             } catch (Throwable ignored) {
             }
         }
 
         for (String pkg : toRemove) {
             try {
-                blackBoxCore.uninstallPackageAsUser(pkg, userId);
+                if (blackBoxCore.isInstalled(pkg, userId)) blackBoxCore.uninstallPackageAsUser(pkg, userId);
             } catch (Throwable ignored) {
             }
         }

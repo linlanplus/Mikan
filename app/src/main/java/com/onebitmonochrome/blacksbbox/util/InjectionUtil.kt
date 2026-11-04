@@ -17,7 +17,7 @@ object InjectionUtil {
 
 
 
-    private val gmsRepository = GmsRepository()
+    private val gmsRepository = GmsRepository
 
     private val fakeLocationRepository = FakeLocationRepository()
 
