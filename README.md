@@ -4,7 +4,7 @@
 
 An ad-free Android app cloner with no limit on the number of clones. No root needed.
 
-> 当前版本 / Current version · **1.0.0**
+> 当前版本 / Current version · **1.0.1**
 
 ## 功能 · Features
 

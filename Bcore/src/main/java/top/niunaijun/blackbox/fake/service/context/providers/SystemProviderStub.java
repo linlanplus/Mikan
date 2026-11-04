@@ -3,7 +3,9 @@ package top.niunaijun.blackbox.fake.service.context.providers;
 import android.os.Bundle;
 import android.os.IInterface;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 
 import black.android.content.BRAttributionSource;
 import top.niunaijun.blackbox.BlackBoxCore;
@@ -19,6 +21,10 @@ public class SystemProviderStub extends ClassInvocationStub implements BContentP
 
     @Override
     public IInterface wrapper(IInterface contentProviderProxy, String appPkg) {
+        if (contentProviderProxy != null && Proxy.isProxyClass(contentProviderProxy.getClass())
+                && Proxy.getInvocationHandler(contentProviderProxy) instanceof SystemProviderStub) {
+            return contentProviderProxy;
+        }
         mBase = contentProviderProxy;
         mAppPkg = appPkg;
         injectHook();
@@ -47,62 +53,31 @@ public class SystemProviderStub extends ClassInvocationStub implements BContentP
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        if ("asBinder".equals(method.getName())) {
-            return method.invoke(mBase, args);
-        }
-        
-        String methodName = method.getName();
-        
-        
-        
-        if ("call".equals(methodName)) {
-            
-            if (args != null) {
-                Class<?> attributionSourceClass = BRAttributionSource.getRealClass();
-                for (int i = 0; i < args.length; i++) {
-                    Object arg = args[i];
-                    
-                    if (arg != null && attributionSourceClass != null && 
-                            arg.getClass().getName().equals(attributionSourceClass.getName())) {
-                        int uid = BActivityThread.getUid();
-                        if (uid <= 0) {
-                            uid = BlackBoxCore.getHostUid();
-                        }
-                        String pkg = mAppPkg != null ? mAppPkg : BlackBoxCore.getHostPkg();
-                        ContextCompat.fixAttributionSourceState(arg, pkg, uid);
-                    }
+        boolean isCall = "call".equals(method.getName());
+        if (args != null && args.length > 0) {
+            Object caller = args[0];
+            if (method.getParameterTypes()[0] == String.class) {
+                // Only the first string identifies the caller in legacy call() signatures.
+                if (isCall || (caller instanceof String && !isSystemProviderAuthority((String) caller))) {
+                    args[0] = BlackBoxCore.getHostPkg();
                 }
+            } else if (caller != null && caller.getClass() == BRAttributionSource.getRealClass()) {
+                int uid = BActivityThread.getUid();
+                String pkg = mAppPkg != null ? mAppPkg : BlackBoxCore.getHostPkg();
+                ContextCompat.fixAttributionSourceState(caller, pkg, uid > 0 ? uid : BlackBoxCore.getHostUid());
             }
+        }
+        if (isCall) {
             Bundle spoofed = spoofedSettingResult(args);
             if (spoofed != null) {
                 return spoofed;
             }
+        }
+        try {
             return method.invoke(mBase, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
         }
-        
-        
-        if (args != null && args.length > 0) {
-            Object arg = args[0];
-            if (arg instanceof String) {
-                String authority = (String) arg;
-                
-                if (!isSystemProviderAuthority(authority)) {
-                    args[0] = BlackBoxCore.getHostPkg();
-                }
-            } else if (arg != null) {
-                Class<?> attrSourceClass = BRAttributionSource.getRealClass();
-                
-                if (attrSourceClass != null && arg.getClass().getName().equals(attrSourceClass.getName())) {
-                    int uid = BActivityThread.getUid();
-                    if (uid <= 0) {
-                        uid = BlackBoxCore.getHostUid();
-                    }
-                    String pkg = mAppPkg != null ? mAppPkg : BlackBoxCore.getHostPkg();
-                    ContextCompat.fixAttributionSourceState(arg, pkg, uid);
-                }
-            }
-        }
-        return method.invoke(mBase, args);
     }
 
     // Settings.X.getString reaches the provider as call(..., "GET_<table>", key, extras).

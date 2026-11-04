@@ -35,6 +35,7 @@ import top.niunaijun.blackbox.fake.hook.ProxyMethod;
 import top.niunaijun.blackbox.fake.service.base.PkgMethodProxy;
 import top.niunaijun.blackbox.fake.service.base.ValueMethodProxy;
 import top.niunaijun.blackbox.media.BlackBoxMediaContract;
+import top.niunaijun.blackbox.proxy.ProxyManifest;
 import top.niunaijun.blackbox.utils.MethodParameterUtils;
 import top.niunaijun.blackbox.utils.Reflector;
 import top.niunaijun.blackbox.utils.Slog;
@@ -664,8 +665,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
             String authority = (String) args[0];
             int flags = MethodParameterUtils.toInt(args[1]);
             if (BlackBoxMediaContract.PUBLIC_AUTHORITY.equals(authority)) {
-                ProviderInfo providerInfo = BlackBoxCore.getPackageManager()
-                        .resolveContentProvider(BlackBoxCore.getHostPkg() + ".blackbox.MediaProvider", flags);
+                ProviderInfo providerInfo = resolveForHostUser(who, method, args, ProxyManifest.getMediaProviderAuthority());
                 if (providerInfo != null) {
                     providerInfo = new ProviderInfo(providerInfo);
                     providerInfo.authority = BlackBoxMediaContract.PUBLIC_AUTHORITY;
@@ -673,14 +673,24 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 }
             }
             ProviderInfo providerInfo = BlackBoxCore.getBPackageManager().resolveContentProvider(authority, flags, BActivityThread.getUserId());
-            if (providerInfo == null) {
-                providerInfo = BlackBoxCore.getPackageManager().resolveContentProvider(authority, flags);
+            if (providerInfo != null) {
+                return providerInfo;
+            }
+            if ((int) args[2] != BlackBoxCore.getHostUserId()) {
+                providerInfo = resolveForHostUser(who, method, args, authority);
                 if (providerInfo != null && AppSystemEnv.isOpenPackage(providerInfo.packageName)) {
                     return providerInfo;
                 }
-                return method.invoke(who, args);
             }
-            return providerInfo;
+            return method.invoke(who, args);
+        }
+
+        private ProviderInfo resolveForHostUser(Object who, Method method, Object[] args, String authority) throws Throwable {
+            // Context.getPackageManager() can point back to this hook in a guest process.
+            Object[] hostArgs = args.clone();
+            hostArgs[0] = authority;
+            hostArgs[2] = BlackBoxCore.getHostUserId();
+            return (ProviderInfo) method.invoke(who, hostArgs);
         }
     }
 
