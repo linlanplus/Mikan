@@ -2,6 +2,7 @@ package com.onebitmonochrome.blacksbbox.view.setting
 
 import android.content.Intent
 import android.net.Uri
+import top.niunaijun.blackbox.fake.network.ProxyConfig
 import android.net.VpnService
 import android.os.Bundle
 import android.os.Build
@@ -480,6 +481,28 @@ class SettingFragment : PreferenceFragmentCompat() {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         startActivity(Intent.createChooser(sendIntent, getString(R.string.share_logs_chooser_title)))
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshProxyEntry()
+    }
+
+    private fun refreshProxyEntry() {
+        val pref = findPreference<Preference>("proxy_subscriptions") ?: return
+        val sources = runCatching { ProxyConfig.sources() }.getOrElse {
+            toast(R.string.proxy_save_failed)
+            return
+        }
+        val empty = sources.isEmpty()
+        pref.setTitle(if (empty) R.string.proxy_import_title else R.string.proxy_mine)
+        pref.summary = if (empty) getString(R.string.proxy_import_hint)
+                else getString(R.string.proxy_catalog_count, sources.size, sources.sumOf { it.count })
+        pref.setOnPreferenceClickListener {
+            if (empty) editProxySource(null) { refreshProxyEntry() }
+            else SettingActivity.openProxies(requireContext())
+            true
+        }
     }
 
     private fun getDeviceInfoString(): String {

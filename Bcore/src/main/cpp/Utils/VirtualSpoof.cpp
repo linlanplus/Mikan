@@ -1,5 +1,7 @@
 #include <sys/system_properties.h>
 #include <cstring>
+#include <cstdio>
+#include <cinttypes>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -84,10 +86,32 @@ void my_system_property_read_callback(const prop_info *pi, prop_read_cb callback
     orig_system_property_read_callback(pi, spoof_read_callback, &ctx);
 }
 
+// A native bridge can map guest libc code as read-only data and execute translated copies.
+static bool is_executable_address(void *address) {
+    FILE *maps = fopen("/proc/self/maps", "r");
+    if (maps == nullptr) return false;
+    bool executable = false;
+    char line[512], perm[5];
+    uintptr_t start, end, target = reinterpret_cast<uintptr_t>(address);
+    while (fgets(line, sizeof(line), maps)) {
+        if (sscanf(line, "%" SCNxPTR "-%" SCNxPTR " %4s", &start, &end, perm) == 3
+                && start <= target && target < end) {
+            executable = perm[2] == 'x';
+            break;
+        }
+    }
+    fclose(maps);
+    return executable;
+}
+
 static void hook_symbol(void *handle, const char *symbol, void *replace, void **orig) {
     void *target = xdl_dsym(handle, symbol, nullptr);
     if (target == nullptr) {
         LOGD("Spoof: %s not found", symbol);
+        return;
+    }
+    if (!is_executable_address(target)) {
+        LOGD("Spoof: %s has no executable mapping", symbol);
         return;
     }
     if (DobbyHook(target, replace, orig) == 0) {

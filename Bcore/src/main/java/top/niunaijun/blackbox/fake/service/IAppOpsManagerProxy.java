@@ -1,6 +1,8 @@
 package top.niunaijun.blackbox.fake.service;
 
 import android.app.AppOpsManager;
+import android.annotation.TargetApi;
+import android.content.AttributionSource;
 import android.content.Context;
 import android.os.IBinder;
 
@@ -11,8 +13,6 @@ import black.android.os.BRServiceManager;
 import black.com.android.internal.app.BRIAppOpsServiceStub;
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.fake.hook.BinderInvocationStub;
-import top.niunaijun.blackbox.fake.hook.MethodHook;
-import top.niunaijun.blackbox.fake.hook.ProxyMethod;
 import top.niunaijun.blackbox.utils.MethodParameterUtils;
 import top.niunaijun.blackbox.utils.Slog;
 
@@ -43,210 +43,74 @@ public class IAppOpsManagerProxy extends BinderInvocationStub {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        String methodName = method.getName();
-        
-        
-        
-        if (methodName.startsWith("check") || 
-            methodName.startsWith("note") || 
-            methodName.startsWith("start")) {
-            Slog.d(TAG, "AppOps invoke: Bypassing system for " + methodName + ", allowing operation");
-            return AppOpsManager.MODE_ALLOWED;
+        String name = method.getName();
+        Class<?> result = method.getReturnType();
+        if (name.startsWith("check") || name.startsWith("note") ||
+                name.startsWith("start") || name.startsWith("finish")) {
+            if (result == int.class) return AppOpsManager.MODE_ALLOWED;
+            if (result == void.class) return null;
+            // S changed note/start operations from int to SyncNotedAppOp, including proxy variants.
+            if ("android.app.SyncNotedAppOp".equals(result.getName())) {
+                try {
+                    return NoteOperation.allowed(method, args);
+                } catch (ReflectiveOperationException e) {
+                    Slog.w(TAG, "Using system AppOps implementation for " + name, e);
+                }
+            }
         }
-        
-        
-        if (methodName.startsWith("finish")) {
-            Slog.d(TAG, "AppOps invoke: Bypassing system for " + methodName);
-            return null;
-        }
-        
-        
+
         try {
             MethodParameterUtils.replaceFirstAppPkg(args);
             MethodParameterUtils.replaceLastUid(args);
             return super.invoke(proxy, method, args);
-        } catch (SecurityException e) {
-            
-            Slog.w(TAG, "AppOps invoke: SecurityException caught for " + methodName + ", allowing operation", e);
-            return AppOpsManager.MODE_ALLOWED;
         } catch (Exception e) {
-            Slog.e(TAG, "AppOps invoke: Error in method " + methodName, e);
-            
-            return AppOpsManager.MODE_ALLOWED;
+            Slog.w(TAG, "AppOps call failed: " + name, e);
+            if (result == int.class) return AppOpsManager.MODE_ALLOWED;
+            if (result == void.class) return null;
+            throw e;
+        }
+    }
+
+    /** Only loaded on systems whose Binder interface returns SyncNotedAppOp. */
+    @TargetApi(31)
+    private static final class NoteOperation {
+        static Object allowed(Method method, Object[] args) throws ReflectiveOperationException {
+            Class<?>[] params = method.getParameterTypes();
+            // startOperation has a leading binder token. noteOperation starts with the op code.
+            int op = params.length > 0 && params[0] == IBinder.class ? 1 : 0;
+            if (params.length <= op + 1 || params[op] != int.class) {
+                throw new NoSuchMethodException(method.getName());
+            }
+            String pkg;
+            String tag;
+            if (params[op + 1] == int.class && params.length > op + 3 &&
+                    params[op + 2] == String.class && params[op + 3] == String.class) {
+                pkg = (String) args[op + 2];
+                tag = (String) args[op + 3];
+            } else {
+                Object value = args[op + 1];
+                AttributionSource source;
+                if (value instanceof AttributionSource) {
+                    source = (AttributionSource) value;
+                } else if (value != null && "android.content.AttributionSourceState".equals(params[op + 1].getName())) {
+                    source = AttributionSource.class.getConstructor(params[op + 1]).newInstance(value);
+                } else {
+                    throw new NoSuchMethodException(method.getName());
+                }
+                AttributionSource proxied = source.getNext();
+                if (proxied != null) source = proxied;
+                pkg = source.getPackageName();
+                tag = source.getAttributionTag();
+            }
+            // The public two-argument constructor defaults to MODE_IGNORED on S and later.
+            return method.getReturnType().getConstructor(int.class, int.class, String.class, String.class)
+                    .newInstance(AppOpsManager.MODE_ALLOWED, args[op], tag,
+                            pkg != null ? pkg : BlackBoxCore.getHostPkg());
         }
     }
 
     @Override
     public boolean isBadEnv() {
         return false;
-    }
-
-    @ProxyMethod("noteProxyOperation")
-    public static class NoteProxyOperation extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return AppOpsManager.MODE_ALLOWED;
-        }
-    }
-
-    @ProxyMethod("checkPackage")
-    public static class CheckPackage extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            
-            return AppOpsManager.MODE_ALLOWED;
-        }
-    }
-
-    @ProxyMethod("checkOperation")
-    public static class CheckOperation extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            
-            
-            Slog.d(TAG, "AppOps CheckOperation: Bypassing system check, allowing operation");
-            return AppOpsManager.MODE_ALLOWED;
-        }
-    }
-
-    
-    @ProxyMethod("checkOperationForDevice")
-    public static class CheckOperationForDevice extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            
-            Slog.d(TAG, "AppOps CheckOperationForDevice: Bypassing system check, allowing operation");
-            return AppOpsManager.MODE_ALLOWED;
-        }
-    }
-
-    @ProxyMethod("noteOperation")
-    public static class NoteOperation extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            
-            Slog.d(TAG, "AppOps NoteOperation: Bypassing system check, allowing operation");
-            return AppOpsManager.MODE_ALLOWED;
-        }
-    }
-
-    @ProxyMethod("checkOpNoThrow")
-    public static class CheckOpNoThrow extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            
-            Slog.d(TAG, "AppOps CheckOpNoThrow: Bypassing system check, allowing operation");
-            return AppOpsManager.MODE_ALLOWED;
-        }
-    }
-
-    
-    @ProxyMethod("startOp")
-    public static class StartOp extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            
-            Slog.d(TAG, "AppOps StartOp: Bypassing system check, allowing operation");
-            return AppOpsManager.MODE_ALLOWED;
-        }
-    }
-
-    @ProxyMethod("startOpNoThrow")
-    public static class StartOpNoThrow extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            
-            Slog.d(TAG, "AppOps StartOpNoThrow: Bypassing system check, allowing operation");
-            return AppOpsManager.MODE_ALLOWED;
-        }
-    }
-
-    
-    @ProxyMethod("finishOp")
-    public static class FinishOp extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            try {
-                int op = (int) args[0];
-                String name = getOpPublicName(op);
-                if (name != null && isMediaStorageOrAudioOp(name)) {
-                    Slog.d(TAG, "AppOps FinishOp: Finishing operation: " + name);
-                }
-            } catch (Throwable ignored) {
-            }
-            return null;
-        }
-    }
-
-    
-    @ProxyMethod("noteOp")
-    public static class NoteOp extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            try {
-                int op = (int) args[0];
-                String name = getOpPublicName(op);
-                if (name != null && (name.contains("RECORD_AUDIO") || name.contains("AUDIO") || name.contains("MICROPHONE"))) {
-                    Slog.d(TAG, "AppOps NoteOp: Allowing RECORD_AUDIO operation: " + name);
-                    return AppOpsManager.MODE_ALLOWED;
-                }
-            } catch (Throwable ignored) {
-            }
-            return method.invoke(who, args);
-        }
-    }
-
-    
-    @ProxyMethod("noteOpNoThrow")
-    public static class NoteOpNoThrow extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            try {
-                int op = (int) args[0];
-                String name = getOpPublicName(op);
-                if (name != null && (name.contains("RECORD_AUDIO") || name.contains("AUDIO") || name.contains("MICROPHONE"))) {
-                    Slog.d(TAG, "AppOps NoteOpNoThrow: Allowing RECORD_AUDIO operation: " + name);
-                    return AppOpsManager.MODE_ALLOWED;
-                }
-            } catch (Throwable ignored) {
-            }
-            return method.invoke(who, args);
-        }
-    }
-
-    private static boolean isMediaStorageOrAudioOp(String opPublicNameOrStr) {
-        if (opPublicNameOrStr == null) return false;
-        
-        String n = opPublicNameOrStr.toUpperCase();
-        return n.contains("READ_MEDIA")
-                || n.contains("READ_EXTERNAL_STORAGE")
-                || n.contains("RECORD_AUDIO")
-                || n.contains("CAPTURE_AUDIO_OUTPUT")
-                || n.contains("MODIFY_AUDIO_SETTINGS")
-                || n.contains("AUDIO")
-                || n.contains("MICROPHONE")
-                || n.contains("FOREGROUND_SERVICE")
-                || n.contains("SYSTEM_ALERT_WINDOW")
-                || n.contains("WRITE_SETTINGS")
-                || n.contains("ACCESS_FINE_LOCATION")
-                || n.contains("ACCESS_COARSE_LOCATION")
-                || n.contains("CAMERA")
-                || n.contains("BODY_SENSORS")
-                || n.contains("BLUETOOTH_SCAN")
-                || n.contains("BLUETOOTH_CONNECT")
-                || n.contains("BLUETOOTH_ADVERTISE")
-                || n.contains("NEARBY_WIFI_DEVICES")
-                || n.contains("POST_NOTIFICATIONS");
-    }
-
-    private static String getOpPublicName(int op) {
-        try {
-            
-            java.lang.reflect.Method m = AppOpsManager.class.getMethod("opToPublicName", int.class);
-            Object name = m.invoke(null, op);
-            return name != null ? name.toString() : null;
-        } catch (Throwable ignored) {
-            return null;
-        }
     }
 }

@@ -726,6 +726,7 @@ class HomeFragment : Fragment(), DragLayer.Listener {
                 viewModel.refreshLayout()
             }
             R.id.clone_device -> DeviceSpoofingActivity.start(requireContext(), clone.userId)
+            R.id.clone_proxy -> showProxyPicker(clone)
             R.id.clone_location -> startActivity(
                     Intent(requireContext(), FakeManagerActivity::class.java).putExtra("userID", clone.userId)
             )

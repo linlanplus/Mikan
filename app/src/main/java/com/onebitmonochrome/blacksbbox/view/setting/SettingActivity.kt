@@ -16,12 +16,27 @@ class SettingActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         setContentView(viewBinding.root)
         initToolbar(viewBinding.toolbarLayout.toolbar, R.string.setting, true)
-        supportFragmentManager.beginTransaction()
-                .replace(R.id.fragment, SettingFragment())
-                .commit()
+        if (savedInstanceState == null) {
+            val page = if (intent.getBooleanExtra(PROXY_PAGE, false))
+                ProxyManagerFragment().apply { arguments = intent.extras }
+            else SettingFragment()
+            supportFragmentManager.beginTransaction().replace(R.id.fragment, page).commit()
+        }
     }
 
-    companion object{
+    internal fun setProxyPageTitle(text: String) {
+        viewBinding.toolbarLayout.toolbar.title = text
+    }
+
+    companion object {
+        private const val PROXY_PAGE = "proxy_page"
+        internal const val PROXY_SOURCE = "proxy_source"
+
+        fun openProxies(context: Context, sourceId: String? = null) {
+            context.startActivity(Intent(context, SettingActivity::class.java)
+                .putExtra(PROXY_PAGE, true).putExtra(PROXY_SOURCE, sourceId))
+        }
+
         fun start(context: Context){
             val intent = Intent(context,SettingActivity::class.java)
             intent.action = Intent.ACTION_OPEN_DOCUMENT

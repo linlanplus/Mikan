@@ -4,14 +4,14 @@
 
 An ad-free Android app cloner with no limit on the number of clones. No root needed.
 
-> 当前是 **0.9 测试版**，还在打磨中，遇到问题欢迎反馈。
-> This is the **0.9 test release**. Bug reports are welcome.
+> 当前版本 / Current version · **1.0.0**
 
 ## 功能 · Features
 
 - **不限数量的分身：** 同一个应用可以开 3 个、5 个甚至更多。每个分身的数据和登录状态互相独立。
 - **每个分身一台"不同的手机"：** 自动给每个分身分配不同的机型、设备名、Android ID 和序列号，也可以手动修改，内置 25 款常见机型。
 - **用户和文件夹：** 按"用户"分组管理分身，用文件夹整理，和桌面一样长按拖动。
+- 在 **设置 → 设置链式代理** 中导入订阅或节点链接。首次保存后，这个入口变为 **我的链式代理**。长按分身可选择节点或测延迟。内置 Xray 支持 VMess、VLESS、Trojan 和 Shadowsocks，代理该分身的 TCP 连接。UDP 和 DNS 使用设备网络。
 - **重命名：** 给分身改显示名称，不影响应用本身。
 - **虚拟定位、分身相册、快捷方式、冻结：** 继承自上游项目。
 - **主题和语言：** 跟随系统 / 浅色 / 深色，简体中文 / English。
@@ -21,6 +21,7 @@ An ad-free Android app cloner with no limit on the number of clones. No root nee
 - **Unlimited clones:** run three, five or more copies of the same app, each with its own data and login.
 - **A different phone per clone:** every clone gets its own model, device name, Android ID and serial number automatically. You can also pick one of 25 built-in phone models or edit them by hand.
 - **Users and folders:** group clones into "users" and organise them in folders with launcher-style drag and drop.
+- Import subscriptions or node links in **Settings → Set up proxy subscriptions**. After the first save, this entry becomes **My proxy subscriptions**. Long-press a clone to choose a node or test latency. The embedded Xray core routes the clone’s TCP connections over VMess, VLESS, Trojan or Shadowsocks. UDP and DNS use the device network.
 - **Rename:** change the name a clone is shown with, without touching the app itself.
 - **Fake location, gallery, shortcuts, freezing:** inherited from the upstream project.
 - **Theme and language:** system / light / dark, 简体中文 / English.
@@ -36,12 +37,14 @@ Download from [Releases](https://github.com/linlanplus/Mikan/releases): `arm64-v
 
 ## 已知问题 · Known issues
 
+- Google 官方 Android 12L x86 模拟器无法运行内置的 ARM 版 Xray。代理功能已在 MuMu Android 15 上验证。
 - Telegram 的后台保活任务可能报错。
 - 繁体中文翻译不完整。
 - 部分应用会检测多开环境，可能无法在分身里正常使用。
 
 ---
 
+- The Google Android 12L x86 emulator cannot run the bundled ARM Xray binary. Proxy features have been tested on MuMu Android 15.
 - Telegram's background keep-alive job can fail.
 - The Traditional Chinese translation is incomplete.
 - Some apps detect app cloning and may not work inside a clone.
@@ -54,9 +57,9 @@ This project is for learning and lawful personal use. Follow the law where you l
 
 ## 编译 · Building
 
-需要 JDK 21、Android SDK 和 NDK 29。路径里不能有空格，否则 ndk-build 会失败。
+需要 JDK 21、Android SDK、NDK 29 和 Go 1.26 工具链。Gradle 会为两个 ARM 架构编译内置 Xray。请使用不含空格的项目路径运行 ndk-build。
 
-Requires JDK 21, the Android SDK and NDK 29. The project path must not contain spaces, or ndk-build fails.
+Builds require JDK 21, the Android SDK, NDK 29 and a Go 1.26 toolchain. Gradle builds the embedded Xray executable for both ARM architectures. Use a project path without spaces for ndk-build.
 
 ```bash
 ./gradlew assembleDebug
@@ -81,6 +84,7 @@ Mikan is built on these open source projects:
 - [BlackBox](https://github.com/FBlackBox/BlackBox)
 - [VirtualApp](https://github.com/asLody/VirtualApp) by asLody
 - [VirtualAPK](https://github.com/didi/VirtualAPK) by didi
+- [Xray-core](https://github.com/XTLS/Xray-core) by Project X
 - [Dobby](https://github.com/jmpews/Dobby) by jmpews
 - [xDL](https://github.com/hexhacking/xDL) by HexHacking
 - [BlackReflection](https://github.com/CodingGay/BlackReflection) by CodingGay

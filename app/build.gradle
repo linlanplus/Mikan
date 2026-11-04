@@ -78,6 +78,8 @@ android {
     }
 }
 
+apply from: rootProject.file('Bcore/xray/android.gradle')
+
 def blackBoxGalleryAssetsDir = layout.buildDirectory.dir("generated/blackboxGalleryAssets")
 
 tasks.register("copyBlackBoxGuestGalleryApk", Copy) {

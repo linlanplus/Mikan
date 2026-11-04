@@ -1,0 +1,61 @@
+def source = rootProject.file('Bcore/xray')
+def nativeDir = layout.buildDirectory.dir('generated/xray/jniLibs')
+android.sourceSets.main.jniLibs.srcDir(nativeDir)
+android.packagingOptions.jniLibs.useLegacyPackaging = true
+android.packagingOptions.jniLibs.keepDebugSymbols += '**/libmikanxray.so'
+
+def targets = ['arm64-v8a': ['arm64', 'aarch64-linux-android21'],
+               'armeabi-v7a': ['arm', 'armv7a-linux-androideabi21']]
+targets.each { abi, target ->
+    def binary = nativeDir.map { it.file(abi + '/libmikanxray.so') }
+    def buildCore = tasks.register("buildMikanXray" + target[0].capitalize(), Exec) {
+        workingDir source
+        inputs.files(fileTree(source) { include '*.go', 'go.mod', 'go.sum', 'android.gradle' })
+        inputs.property('ndkVersion', android.ndkVersion)
+        outputs.file(binary)
+        doFirst {
+            def windows = System.getProperty('os.name').startsWith('Windows')
+            def host = windows ? 'windows-x86_64' : (System.getProperty('os.name').contains('Mac') ? 'darwin-x86_64' : 'linux-x86_64')
+            def clang = new File(android.ndkDirectory, "toolchains/llvm/prebuilt/$host/bin/" + (windows ? 'clang.exe' : 'clang'))
+            if (!clang.isFile()) throw new GradleException("Android NDK clang missing: $clang")
+            environment 'CC', '"' + clang.absolutePath.replace('\\', '/') + '" --target=' + target[1]
+            environment 'GOOS', 'android'
+            environment 'GOARCH', target[0]
+            if (target[0] == 'arm') environment 'GOARM', '7'
+            environment 'CGO_ENABLED', '1'
+            def dest = binary.get().asFile
+            dest.parentFile.mkdirs()
+            commandLine 'go', 'build', '-mod=readonly', '-p=4', '-buildvcs=false', '-trimpath', '-buildmode=pie',
+                    '-ldflags=-s -w -buildid= -extldflags=-Wl,-z,max-page-size=16384', '-o', dest.absolutePath, '.'
+        }
+    }
+    tasks.named('preBuild').configure { dependsOn(buildCore) }
+}
+
+def noticeDir = layout.buildDirectory.dir('generated/xray/notices')
+android.sourceSets.main.assets.srcDir(noticeDir)
+def notices = tasks.register('collectMikanXrayNotices') {
+    inputs.files(fileTree(source) { include '*.go', 'go.mod', 'go.sum', 'android.gradle' })
+    outputs.dir(noticeDir)
+    doLast {
+        def listed = providers.exec {
+            workingDir source
+            commandLine 'go', 'list', '-mod=readonly', '-deps', '-f',
+                    '{{with .Module}}{{.Path}}|{{.Version}}|{{.Dir}}{{end}}', '.'
+        }.standardOutput.asText.get().readLines().findAll { it && !it.startsWith('mikan.local/') }.toSorted().unique()
+        def goRoot = providers.exec { workingDir source; commandLine 'go','env','GOROOT' }.standardOutput.asText.get().trim()
+        def dest = new File(noticeDir.get().asFile, 'XRAY_LICENSES.txt')
+        dest.parentFile.mkdirs()
+        dest.withWriter('UTF-8') { writer ->
+            writer.println('Go runtime\n' + new File(goRoot, 'LICENSE').getText('UTF-8'))
+            listed.each { module ->
+                def parts = module.split('\\|', 3)
+                writer.println("\n" + parts[0] + " " + parts[1])
+                new File(parts[2]).listFiles()?.findAll { it.isFile() && it.name ==~ /(?i)(license|licence|copying|notice)([._-].*)?/ }?.sort { it.name }?.each {
+                    writer.println(it.getText('UTF-8'))
+                }
+            }
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn(notices) }

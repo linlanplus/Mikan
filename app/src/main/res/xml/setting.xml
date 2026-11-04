@@ -41,6 +41,11 @@
                 app:key="daemon_enable"
                 app:title="@string/daemon_enable" />
 
+        <Preference
+                app:key="proxy_subscriptions"
+                app:title="@string/proxy_import_title"
+                app:summary="@string/proxy_import_hint" />
+
         <SwitchPreferenceCompat
                 app:key="use_vpn_network"
                 app:title="@string/use_vpn_network"

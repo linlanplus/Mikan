@@ -13,4 +13,7 @@
     <color name="on_surface">#0F172A</color>
     <color name="fab_tint">#0EA5E9</color>
     <color name="ic_launcher_adaptive_bg">#000000</color>
+    <color name="proxy_fast">#176A3B</color>
+    <color name="proxy_medium">#856300</color>
+    <color name="proxy_slow">#B3261E</color>
 </resources>

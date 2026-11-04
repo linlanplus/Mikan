@@ -41,6 +41,19 @@ public class NativeCore {
     /** Replaces the system property overrides of this process; names[i] reads as values[i]. */
     public static native void setPropOverrides(String[] names, String[] values);
 
+    /**
+     * Routes this process's outbound TCP through a SOCKS5 proxy. An empty host turns it off.
+     * Affects the whole process, so call it once the guest uid is known.
+     */
+    public static native void setProxy(String host, int port, String user, String pass);
+    public static native int tryProxyConnect(java.io.FileDescriptor fd, byte[] address, int port, int scope);
+
+    /**
+     * Marks the calling thread as outside the proxy, so the tunnel's own connection to its server
+     * is not routed back into the proxy. Balanced: every true needs a false.
+     */
+    public static native void setProxyBypass(boolean bypass);
+
 
     @Keep
     public static int getCallingUid(int origCallingUid) {

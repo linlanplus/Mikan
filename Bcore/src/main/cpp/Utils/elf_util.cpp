@@ -29,17 +29,30 @@ ElfImg::ElfImg(std::string_view base_name) : elf(base_name) {
     int fd = open(elf.data(), O_RDONLY);
     if (fd < 0) {
         LOGE("open(%s) failed: %s", elf.c_str(), strerror(errno));
+        base = nullptr;
         return;
     }
 
     size = lseek(fd, 0, SEEK_END);
-    if (size <= 0) {
-        LOGE("open(%s) failed: %s", elf.c_str(), strerror(errno));
+    if (size < static_cast<off_t>(sizeof(*header))) {
+        close(fd);
+        base = nullptr;
+        return;
     }
-
     header = reinterpret_cast<decltype(header)>(mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0));
-
     close(fd);
+    if (header == MAP_FAILED) {
+        header = nullptr;
+        base = nullptr;
+        return;
+    }
+    // Under native translation libart can be the host ISA. Its symbols cannot be called from guest code.
+#if defined(__aarch64__) || defined(__arm__)
+    if (header->e_machine != (sizeof(void *) == 8 ? EM_AARCH64 : EM_ARM)) {
+        base = nullptr;
+        return;
+    }
+#endif
 
     section_header = offsetOf<decltype(section_header)>(header, header->e_shoff);
 

@@ -1,0 +1,12 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp"
+    android:gravity="center_vertical" android:paddingStart="16dp" android:paddingEnd="16dp">
+    <CheckedTextView android:id="@+id/proxy_choice" android:layout_width="0dp"
+        android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center_vertical"
+        android:checkMark="?android:attr/listChoiceIndicatorSingle" android:textAppearance="?android:attr/textAppearanceListItem" />
+    <TextView android:id="@+id/proxy_latency_value" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:layout_marginStart="8dp" android:textStyle="bold" />
+    <ProgressBar android:id="@+id/proxy_latency_busy" style="?android:attr/progressBarStyleSmall"
+        android:layout_width="20dp" android:layout_height="20dp" android:layout_marginStart="8dp"
+        android:contentDescription="@string/proxy_testing" android:visibility="gone" />
+</LinearLayout>

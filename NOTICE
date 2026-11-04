@@ -16,7 +16,8 @@ Changes made in Mikan, starting from Black's BlackBox commit 23ba344:
   - Per-clone device identity: phone model presets, system property overrides in
     native code, and Settings provider values (android_id, device name).
   - Settings: theme, language, credits, update check.
+  - Embedded Xray for per-clone TCP proxies, subscription import and latency tests.
 The full list of changes is the git history of this repository.
 
 This product bundles third-party code under their own licenses; see
-app/src/main/assets/THIRD_PARTY_NOTICES.txt.
+app/src/main/assets/THIRD_PARTY_NOTICES.txt and the XRAY_LICENSES.txt asset in the APK.

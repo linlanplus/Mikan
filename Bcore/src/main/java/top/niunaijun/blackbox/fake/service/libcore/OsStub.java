@@ -1,6 +1,11 @@
 package top.niunaijun.blackbox.fake.service.libcore;
 
 import android.os.Process;
+import android.system.ErrnoException;
+import java.io.FileDescriptor;
+import java.net.InetAddress;
+import java.net.Inet6Address;
+import java.net.InetSocketAddress;
 
 import java.lang.reflect.Method;
 
@@ -8,6 +13,8 @@ import black.libcore.io.BRLibcore;
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.core.IOCore;
+import top.niunaijun.blackbox.core.NativeCore;
+import top.niunaijun.blackbox.fake.network.ProxyConfig;
 import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.fake.hook.ClassInvocationStub;
 import top.niunaijun.blackbox.fake.hook.MethodHook;
@@ -44,6 +51,22 @@ public class OsStub extends ClassInvocationStub {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        if (ProxyConfig.routesTcp() && "connect".equals(method.getName()) && args != null
+                && args.length >= 2 && args[0] instanceof FileDescriptor) {
+            InetSocketAddress target = null;
+            if (args.length == 3 && args[1] instanceof InetAddress && args[2] instanceof Integer) {
+                target = new InetSocketAddress((InetAddress) args[1], (Integer) args[2]);
+            } else if (args[1] instanceof InetSocketAddress) {
+                target = (InetSocketAddress) args[1];
+            }
+            if (target != null && !target.isUnresolved()) {
+                InetAddress ip = target.getAddress();
+                int scope = ip instanceof Inet6Address ? ((Inet6Address) ip).getScopeId() : 0;
+                int result = NativeCore.tryProxyConnect((FileDescriptor) args[0], ip.getAddress(), target.getPort(), scope);
+                if (result < 0) throw new ErrnoException("connect", -result);
+                if (result > 0) return null;
+            }
+        }
         if (args != null) {
             for (int i = 0; i < args.length; i++) {
                 if (args[i] == null)

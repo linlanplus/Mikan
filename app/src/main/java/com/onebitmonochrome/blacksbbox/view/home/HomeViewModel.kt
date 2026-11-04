@@ -79,6 +79,7 @@ class HomeViewModel(private val repo: AppsRepository) : BaseViewModel() {
             } catch (e: Exception) {
                 Log.e(TAG, "Error removing user ${clone.userId}: ${e.message}")
             }
+            runCatching { top.niunaijun.blackbox.fake.network.ProxyConfig.forget(clone.userId, clone.packageName) }
             CloneStore.removeClone(clone.key)
             load()
         }

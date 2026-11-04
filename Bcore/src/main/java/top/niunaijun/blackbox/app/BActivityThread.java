@@ -72,6 +72,7 @@ import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.entity.am.ReceiverData;
 
 import top.niunaijun.blackbox.fake.delegate.AppInstrumentation;
+import top.niunaijun.blackbox.fake.network.ProxyConfig;
 import top.niunaijun.blackbox.fake.delegate.ContentProviderDelegate;
 
 import top.niunaijun.blackbox.fake.hook.HookManager;
@@ -461,6 +462,7 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
 
         NativeCore.init(Build.VERSION.SDK_INT);
+        ProxyConfig.applyToCurrentProcess(getUserId(), packageName);
         assert packageContext != null;
         IOCore.get().enableRedirect(packageContext);
 

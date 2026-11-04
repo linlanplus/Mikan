@@ -1,0 +1,10 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:gravity="center_vertical" android:paddingStart="20dp" android:paddingEnd="8dp"
+    android:paddingTop="8dp" android:paddingBottom="4dp">
+    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:text="@string/clone_proxy" android:textAppearance="?attr/textAppearanceHeadline6" />
+    <Button android:id="@+id/proxy_test" style="?attr/borderlessButtonStyle"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="@string/proxy_latency" android:textAllCaps="false"/>
+</LinearLayout>

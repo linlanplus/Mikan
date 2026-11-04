@@ -13,6 +13,7 @@
 #include <Hook/BinderHook.h>
 #include <Hook/DexFileHook.h>
 #include <Hook/RuntimeHook.h>
+#include <Hook/ProxyHook.h>
 #include "Utils/HexDump.h"
 #include "Utils/VirtualSpoof.h"
 #include "hidden_api.h"
@@ -152,6 +153,31 @@ void setPropOverrides(JNIEnv *env, jclass clazz, jobjectArray names, jobjectArra
     }
 }
 
+void setProxy(JNIEnv *env, jclass clazz, jstring host, jint port, jstring user, jstring pass) {
+    const char *c_host = host != nullptr ? env->GetStringUTFChars(host, JNI_FALSE) : nullptr;
+    const char *c_user = user != nullptr ? env->GetStringUTFChars(user, JNI_FALSE) : nullptr;
+    const char *c_pass = pass != nullptr ? env->GetStringUTFChars(pass, JNI_FALSE) : nullptr;
+    setProxyConfig(c_host, port, c_user, c_pass);
+    if (c_host != nullptr) env->ReleaseStringUTFChars(host, c_host);
+    if (c_user != nullptr) env->ReleaseStringUTFChars(user, c_user);
+    if (c_pass != nullptr) env->ReleaseStringUTFChars(pass, c_pass);
+}
+
+void nativeSetProxyBypass(JNIEnv *env, jclass clazz, jboolean bypass) {
+    setProxyBypass(bypass == JNI_TRUE);
+}
+
+static jint nativeTryProxyConnect(JNIEnv *env, jclass, jobject fd, jbyteArray ip, jint port, jint scope) {
+    jsize length = env->GetArrayLength(ip);
+    if (length != 4 && length != 16) return 0;
+    jclass fdClass = env->GetObjectClass(fd);
+    jfieldID descriptor = env->GetFieldID(fdClass, "descriptor", "I");
+    if (descriptor == nullptr) return 0;  // JNI leaves the missing-field exception pending.
+    unsigned char bytes[16];
+    env->GetByteArrayRegion(ip, 0, length, reinterpret_cast<jbyte *>(bytes));
+    return tryJavaProxyConnect(env->GetIntField(fd, descriptor), bytes, length, port, scope);
+}
+
 static JNINativeMethod gMethods[] = {
         {"disableHiddenApi", "()Z",                               (void *) disableHiddenApi},
         {"disableResourceLoading", "()Z",                         (void *) disableResourceLoading},
@@ -160,6 +186,9 @@ static JNINativeMethod gMethods[] = {
         {"enableIO",   "()V",                                     (void *) enableIO},
         {"init",       "(I)V",                                    (void *) init},
         {"setPropOverrides", "([Ljava/lang/String;[Ljava/lang/String;)V", (void *) setPropOverrides},
+        {"setProxy",   "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)V", (void *) setProxy},
+        {"setProxyBypass", "(Z)V",                                  (void *) nativeSetProxyBypass},
+        {"tryProxyConnect", "(Ljava/io/FileDescriptor;[BII)I", (void *) nativeTryProxyConnect},
 };
 
 int registerNativeMethods(JNIEnv *env, const char *className,
