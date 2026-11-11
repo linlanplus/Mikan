@@ -19,6 +19,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Objects;
+import java.util.UUID;
 
 import black.android.app.BRActivityManagerNative;
 import black.android.app.BRActivityManagerOreo;
@@ -71,6 +72,12 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 @ScanClass(ActivityManagerCommonProxy.class)
 public class IActivityManagerProxy extends ClassInvocationStub {
     public static final String TAG = "ActivityManagerStub";
+
+    // All guests bind under the host package. Keep renderer instances distinct
+    // across guest processes, including a restarted process that reuses a slot/PID.
+    // The namespace stays stable for reconnects during this process lifetime.
+    private static final String SERVICE_INSTANCE_PREFIX =
+            "mikan_" + UUID.randomUUID().toString().replace("-", "") + "_";
 
     private static final String PKG_SAMSUNG_HEALTH = "com.sec.android.app.shealth";
     private static final String PKG_SAMSUNG_ACCOUNT = "com.osp.app.signin";
@@ -440,6 +447,10 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     }
 
     public static Object BindServiceCommon(Object who, Method method, Object[] args,int callingPackageIndex) throws Throwable {
+        args = args.clone();
+        if (callingPackageIndex == 7 && args[6] instanceof String) {
+            args[6] = SERVICE_INSTANCE_PREFIX + args[6];
+        }
         try {
             Intent intent = (Intent) args[2];
             String resolvedType = (String) args[3];
@@ -476,12 +487,22 @@ public class IActivityManagerProxy extends ClassInvocationStub {
 
                 
                 if (proxyIntent != null && proxyIntent.getComponent() != null && 
-                    proxyIntent.getComponent().getPackageName().equals(BlackBoxCore.getHostPkg())){
+                    proxyIntent.getComponent().getPackageName().equals(BlackBoxCore.getHostPkg()) &&
+                    proxyIntent.getComponent().getClassName().startsWith(
+                            "top.niunaijun.blackbox.proxy.ProxyService$P")){
+                    // Only our non-isolated proxy services must lose instanceName.
+                    // Real WebView isolated services retain their per-process identity.
+                    if (callingPackageIndex == 7) {
+                        args[6] = null;
+                    }
                     int flagsIndex = getFlagsIndex(args);
                     if (flagsIndex >= 0) {
-                        int flags = MethodParameterUtils.toInt(args[flagsIndex]);
-                        flags &= ~Context.BIND_EXTERNAL_SERVICE;
-                        args[flagsIndex] = flags;
+                        // Android 14+ uses long flags; retain high bits and argument type.
+                        if (args[flagsIndex] instanceof Long) {
+                            args[flagsIndex] = (Long) args[flagsIndex] & ~(Context.BIND_EXTERNAL_SERVICE & 0xffffffffL);
+                        } else {
+                            args[flagsIndex] = (Integer) args[flagsIndex] & ~Context.BIND_EXTERNAL_SERVICE;
+                        }
                     }
                 }
                 args[callingPackageIndex] = BlackBoxCore.getHostPkg();
@@ -527,13 +548,6 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     public static class bindServiceInstance extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            if (args != null && args.length > 6) {
-                // Android 14+/16 rejects instance names for normal non-isolated
-                // proxy services. Our proxy layer already multiplexes by extras,
-                // so keep the sandbox bind path and strip the framework-level
-                // instance token before the real bind.
-                args[6] = null;
-            }
             return BindServiceCommon(who,method,args,7);
         }
 
@@ -549,7 +563,6 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             
-            args[6] = null;
             return BindServiceCommon(who,method,args,7);
         }
 
