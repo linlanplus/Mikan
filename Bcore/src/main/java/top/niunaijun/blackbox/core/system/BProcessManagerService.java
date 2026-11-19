@@ -18,6 +18,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.core.IBActivityThread;
@@ -41,6 +47,18 @@ public class BProcessManagerService implements ISystemService {
     private final Map<Integer, Map<String, ProcessRecord>> mProcessMap = new HashMap<>();
     private final List<ProcessRecord> mPidsSelfLocked = new ArrayList<>();
     private final Object mProcessLock = new Object();
+    private static final class FlowOwner {
+        final String owner;
+        final long until;
+        FlowOwner(String owner, long until) { this.owner = owner; this.until = until; }
+    }
+    private final Map<String, FlowOwner> flowOwners = new ConcurrentHashMap<>();
+    private final Map<Integer, Long> slowOwners = new ConcurrentHashMap<>();
+    private final ExecutorService ownerQueries = Executors.newCachedThreadPool(r -> {
+        Thread thread = new Thread(r, "socket-owner");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public static BProcessManagerService get() {
         return sBProcessManagerService;
@@ -69,12 +87,22 @@ public class BProcessManagerService implements ISystemService {
     }
 
     public String socketOwner(int type, String src, int sp, String dst, int dp) throws RemoteException {
+        String flow = type + " " + src + " " + sp + " " + dst + " " + dp;
+        long now = android.os.SystemClock.elapsedRealtime();
+        FlowOwner cached = flowOwners.get(flow);
+        if (cached != null && cached.until > now) return cached.owner;
         List<ProcessRecord> snapshot;
         synchronized (mProcessLock) { snapshot = new ArrayList<>(mPidsSelfLocked); }
         String owner = "";
+        boolean complete = true;
         for (ProcessRecord process : snapshot) {
             IBActivityThread thread = process.bActivityThread;
             if (thread == null || !thread.asBinder().isBinderAlive()) continue;
+            Long quiet = slowOwners.get(process.pid);
+            if (quiet != null && quiet > now) {
+                complete = false;
+                continue;
+            }
             // A live provider dependency keeps Android from freezing a process in the middle of a synchronous Binder query.
             synchronized (process) {
                 if (process.networkProvider == null) {
@@ -85,10 +113,25 @@ public class BProcessManagerService implements ISystemService {
                     if (process.networkProvider == null) continue;
                 }
             }
-            long inode = thread.socketOwner(type, src, sp, dst, dp);
-            if (inode < 0 || (inode > 0 && !owner.isEmpty())) return "blocked";
+            Future<Long> query = ownerQueries.submit(() -> thread.socketOwner(type, src, sp, dst, dp));
+            long inode;
+            try {
+                inode = query.get(300, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException timedOut) {
+                // One wedged guest must not hold the route threads. Its packets stay unowned.
+                slowOwners.put(process.pid, now + 2000);
+                complete = false;
+                continue;
+            } catch (Exception failed) {
+                continue;
+            }
+            if (inode < 0 || (inode > 0 && !owner.isEmpty())) {
+                flowOwners.put(flow, new FlowOwner("blocked", now + 200));
+                return "blocked";
+            }
             if (inode > 0) owner = process.userId + ":" + process.getPackageName() + ":" + process.pid + ":" + inode;
         }
+        if (complete) flowOwners.put(flow, new FlowOwner(owner, now + 200));
         return owner;
     }
 

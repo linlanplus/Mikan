@@ -146,9 +146,18 @@ func (g *gateway) dns(f flow, guest net.Conn, p policy, ownerErr error) {
 	}
 }
 func (g *gateway) exchangeDNS(p policy, q *dns.Msg, raw []byte) []byte {
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	// Stay on the selected node. A resolver that node blocks must not become a direct query.
+	for _, resolver := range []string{"1.1.1.1", "8.8.8.8", "9.9.9.9"} {
+		if answer := g.askResolver(p, q, raw, resolver); answer != nil {
+			return answer
+		}
+	}
+	return nil
+}
+func (g *gateway) askResolver(p policy, q *dns.Msg, raw []byte, resolver string) []byte {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	conn, release, err := g.dial(ctx, p, "tcp", "1.1.1.1", 53)
+	conn, release, err := g.dial(ctx, p, "tcp", resolver, 53)
 	if err != nil {
 		return nil
 	}
@@ -156,7 +165,7 @@ func (g *gateway) exchangeDNS(p policy, q *dns.Msg, raw []byte) []byte {
 	defer conn.Close()
 	stop := context.AfterFunc(ctx, func() { conn.Close() })
 	defer stop()
-	conn.SetDeadline(time.Now().Add(8 * time.Second))
+	conn.SetDeadline(time.Now().Add(3 * time.Second))
 	if writeDNSFrame(conn, raw) != nil {
 		return nil
 	}

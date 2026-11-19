@@ -315,6 +315,9 @@ public final class ProxyConfig {
         JSONObject assigned = doc.getJSONObject("assigned");
         String clone = key(user, pkg);
         if (id.isEmpty()) {
+            if (assigned.has(clone) && assigned.isNull(clone)) return true;
+            // Stop before the catalog says direct, so packets from this process cannot switch routes.
+            BlackBoxCore.get().stopPackage(pkg, user);
             assigned.put(clone, JSONObject.NULL);
         } else {
             JSONObject selected = assigned.optJSONObject(clone);
@@ -330,12 +333,14 @@ public final class ProxyConfig {
             }
             if (selected == null) throw new IOException("Node no longer available");
             if (!allowShared && usedByOtherClones(doc, user, pkg).contains(outbound(selected))) return false;
+            BlackBoxCore.get().stopPackage(pkg, user);
             assigned.put(clone, selected);
         }
         save(doc);
         return true;
     }
     public static synchronized void forget(int user, String pkg) throws Exception {
+        BlackBoxCore.get().stopPackage(pkg, user);
         JSONObject doc = store();
         if (doc.getJSONObject("assigned").remove(key(user, pkg)) != null) save(doc);
     }

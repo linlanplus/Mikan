@@ -154,8 +154,8 @@ public final class CloneNetworkActivity extends Activity {
                 try {
                     ProxyConfig.pinForLaunch(user, pkg, approvedHost);
                 } catch (Exception ignored) {
-                    runOnUiThread(
-                        () -> Toast.makeText(this, "节点地址不可用，已阻断联网", Toast.LENGTH_LONG).show());
+                    runOnUiThread(() -> stop("节点地址不可用，已阻断联网"));
+                    return;
                 }
                 Intent launch = BlackBoxCore.getBPackageManager().getLaunchIntentForPackage(pkg, user);
                 if (launch == null)
