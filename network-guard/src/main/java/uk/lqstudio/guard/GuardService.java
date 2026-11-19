@@ -45,13 +45,31 @@ public final class GuardService extends VpnService {
             try {
                 socket = android.system.Os.socket(family,
                     udp ? android.system.OsConstants.SOCK_DGRAM : android.system.OsConstants.SOCK_STREAM, 0);
+                int flags = android.system.Os.fcntlInt(socket, android.system.OsConstants.F_GETFL, 0);
                 try (ParcelFileDescriptor handle = ParcelFileDescriptor.dup(socket)) {
                     if (!protect(handle.getFd()))
                         return null;
                 }
-                android.system.Os.setsockoptTimeval(socket, android.system.OsConstants.SOL_SOCKET,
-                    android.system.OsConstants.SO_SNDTIMEO, android.system.StructTimeval.fromMillis(6000));
-                android.system.Os.connect(socket, ip, port);
+                // SO_SNDTIMEO does not limit connect(). A blocked handshake would occupy a control
+                // thread, and eight of those stall every route lookup.
+                android.system.Os.fcntlInt(socket, android.system.OsConstants.F_SETFL,
+                    flags | android.system.OsConstants.O_NONBLOCK);
+                try {
+                    android.system.Os.connect(socket, ip, port);
+                } catch (android.system.ErrnoException connecting) {
+                    if (connecting.errno != android.system.OsConstants.EINPROGRESS
+                        && connecting.errno != android.system.OsConstants.EAGAIN)
+                        return null;
+                    android.system.StructPollfd wait = new android.system.StructPollfd();
+                    wait.fd = socket;
+                    wait.events = (short) android.system.OsConstants.POLLOUT;
+                    if (android.system.Os.poll(new android.system.StructPollfd[] {wait}, 6000) <= 0)
+                        return null;
+                    if (android.system.Os.getsockoptInt(socket, android.system.OsConstants.SOL_SOCKET,
+                            android.system.OsConstants.SO_ERROR) != 0)
+                        return null;
+                }
+                android.system.Os.fcntlInt(socket, android.system.OsConstants.F_SETFL, flags);
                 return ParcelFileDescriptor.dup(socket);
             } catch (Exception e) {
                 return null;

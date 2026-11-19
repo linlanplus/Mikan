@@ -3,11 +3,12 @@ plugins { alias(libs.plugins.android.application) }
 def props = new Properties()
 def propsFile = file(findProperty("mikan.keystore") ?: rootProject.file("keystore.properties"))
 if (propsFile.exists()) propsFile.withInputStream { props.load(it) }
+def hostId = providers.gradleProperty('mikan.guardHost').orElse('uk.lqstudio.mikan').get()
 android {
     namespace 'uk.lqstudio.guard'
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId (providers.gradleProperty('mikan.guardHost').orElse('uk.lqstudio.mikan').get() + '.networkguard')
+        applicationId hostId + '.networkguard'
         minSdk rootProject.ext.minSdk
         targetSdk rootProject.ext.targetSdkVersion
         versionCode 1
@@ -22,7 +23,12 @@ android {
             keyPassword props.getProperty('keyPassword')
         }
     }
-    buildTypes { release { signingConfig props.getProperty('storeFile') ? signingConfigs.release : signingConfigs.debug } }
+    buildTypes {
+        // The app's debug suffix is ".debug", so the guard package has to be
+        // <host>.debug.networkguard. Stripping ".networkguard" must yield the debug host id.
+        debug { applicationId hostId + '.debug.networkguard' }
+        release { signingConfig props.getProperty('storeFile') ? signingConfigs.release : signingConfigs.debug }
+    }
     compileOptions { sourceCompatibility JavaVersion.VERSION_21; targetCompatibility JavaVersion.VERSION_21 }
 }
 

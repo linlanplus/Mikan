@@ -80,7 +80,9 @@ public class BProcessManagerService implements ISystemService {
                 if (process.networkProvider == null) {
                     process.networkProvider = BlackBoxCore.getContext().getContentResolver()
                             .acquireUnstableContentProviderClient(process.getProviderAuthority());
-                    if (process.networkProvider == null) return "blocked";
+                    // This process cannot be asked yet. Skip it; its own packets stay unowned and are dropped.
+                    // Returning "blocked" here would also black-hole the host and every other clone.
+                    if (process.networkProvider == null) continue;
                 }
             }
             long inode = thread.socketOwner(type, src, sp, dst, dp);
