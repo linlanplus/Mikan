@@ -24,17 +24,23 @@ public final class DeviceBuildSpoofer {
         setStaticStringField("DEVICE", profile.device);
         setStaticStringField("PRODUCT", profile.product);
         setStaticStringField("FINGERPRINT", profile.fingerprint);
+        setStaticStringField("DISPLAY", DeviceSpoofManager.displayId());
+        setStaticStringField(Build.VERSION.class, "INCREMENTAL", DeviceSpoofManager.incremental(profile.serial));
         if (DeviceIdentifiers.exposesBuildSerial()) {
             setStaticStringField("SERIAL", profile.serial);
         }
     }
 
     private static void setStaticStringField(String fieldName, String value) {
+        setStaticStringField(Build.class, fieldName, value);
+    }
+
+    private static void setStaticStringField(Class<?> owner, String fieldName, String value) {
         if (TextUtils.isEmpty(value)) {
             return;
         }
         try {
-            Field field = Build.class.getDeclaredField(fieldName);
+            Field field = owner.getDeclaredField(fieldName);
             field.setAccessible(true);
             try {
                 field.set(null, value);
@@ -53,7 +59,7 @@ public final class DeviceBuildSpoofer {
             long offset = ((Number) staticFieldOffset.invoke(unsafe, field)).longValue();
             putObject.invoke(unsafe, base, offset, value);
         } catch (Throwable e) {
-            Slog.w(TAG, "Unable to spoof Build." + fieldName + ": " + e.getMessage());
+            Slog.w(TAG, "Unable to spoof " + owner.getSimpleName() + "." + fieldName + ": " + e.getMessage());
         }
     }
 

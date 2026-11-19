@@ -45,6 +45,12 @@ public final class DeviceSpoofManager {
             "ro.odm.build.fingerprint", "ro.product.build.fingerprint", "ro.system_ext.build.fingerprint",
             "ro.bootimage.build.fingerprint", "ro.vendor_dlkm.build.fingerprint"
     };
+    private static final String[] INCREMENTAL_PROPS = {
+            "ro.build.version.incremental", "ro.system.build.version.incremental",
+            "ro.vendor.build.version.incremental", "ro.odm.build.version.incremental",
+            "ro.product.build.version.incremental", "ro.system_ext.build.version.incremental",
+            "ro.bootimage.build.version.incremental", "ro.vendor_dlkm.build.version.incremental"
+    };
     private static final String[] MARKET_NAME_PROPS = {
             "ro.product.marketname", "ro.product.vendor.marketname", "ro.product.odm.marketname",
             "ro.config.marketing_name", "ro.vendor.oplus.market.name", "ro.oppo.market.name",
@@ -177,6 +183,10 @@ public final class DeviceSpoofManager {
             for (String prop : FINGERPRINT_PROPS) {
                 addProp(names, values, prop, profile.fingerprint);
             }
+            for (String prop : INCREMENTAL_PROPS) {
+                addProp(names, values, prop, incremental(profile.serial));
+            }
+            addProp(names, values, "ro.build.display.id", displayId());
             for (String prop : MARKET_NAME_PROPS) {
                 addProp(names, values, prop, profile.marketName);
             }
@@ -264,9 +274,18 @@ public final class DeviceSpoofManager {
                 + incremental(profile.serial) + " release-keys";
     }
 
-    private static String incremental(String serial) {
+    /** Build number of the clone; the same value appears in the fingerprint and description. */
+    static String incremental(String serial) {
         long value = Math.abs((long) String.valueOf(Md5Utils.md5(serial)).hashCode());
         return "V" + (value % 900000000L + 100000000L);
+    }
+
+    /**
+     * Build.DISPLAY of a user build signed with release keys is the build ID. The real value
+     * often names the real model or build number, so it cannot be kept.
+     */
+    static String displayId() {
+        return Build.ID;
     }
 
     private static void addProp(List<String> names, List<String> values, String name, String value) {
