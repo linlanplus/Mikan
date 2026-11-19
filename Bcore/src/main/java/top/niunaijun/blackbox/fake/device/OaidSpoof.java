@@ -8,6 +8,7 @@ import android.database.MatrixCursor;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -43,7 +44,7 @@ import top.niunaijun.blackbox.utils.Slog;
  *
  * <p>vivo does not bind: it reads content://com.vivo.vms.IdProvider, answered by
  * {@link #answerVivoQuery}. Xiaomi calls com.android.id.impl.IdProviderImpl in process through
- * reflection, which nothing in this class can intercept.
+ * reflection, which no binder can see; {@link VendorClassShim} answers that lookup instead.
  *
  * <p>Only a guest process is served; the host keeps reading the real one.
  */
@@ -57,7 +58,6 @@ public final class OaidSpoof {
             "com.heytap.openid",                   // ColorOS, realme
             "com.oplus.stdid",                     // OnePlus and newer ColorOS
             "com.vivo.identifier",                 // OriginOS, Funtouch
-            "com.hihonor.id",                      // HONOR after the split
             "com.samsung.android.deviceidservice", // Samsung China firmware
             "com.zui.deviceidservice",             // Lenovo
             "com.asus.msa",                        // ASUS
@@ -85,6 +85,16 @@ public final class OaidSpoof {
      * returned. The delay keeps that ordering, which SDKs rely on when they wait on a latch.
      */
     private static final long CONNECT_DELAY_MS = 20L;
+
+    /**
+     * HONOR's identifier interface, read from com.hihonor.id of MagicOS 10. The package also holds
+     * the account, wallet and cloud services, so it is matched by this descriptor and the service
+     * action rather than by the package alone.
+     */
+    private static final String HONOR_OAID = "com.hihonor.cloudservice.oaid.IOAIDService";
+    private static final String HONOR_CALLBACK = "com.hihonor.cloudservice.oaid.IOAIDCallBack";
+    /** IOAIDCallBack declares basicTypes first, handleResult second. */
+    private static final int HONOR_HANDLE_RESULT = IBinder.FIRST_CALL_TRANSACTION + 1;
 
     private static final Map<String, IBinder> sBinders = new HashMap<>();
     private static final Set<IBinder> sFakedConnections = new HashSet<>();
@@ -351,6 +361,9 @@ public final class OaidSpoof {
             }
             String descriptor = readInterfaceDescriptor(data);
             int index = code - IBinder.FIRST_CALL_TRANSACTION;
+            if (HONOR_OAID.equals(descriptor)) {
+                return answerHonor(reply, data, index);
+            }
             reply.writeNoException();
             if (isTrackLimited(descriptor, index)) {
                 // Huawei asks isOaidTrackLimited() as a boolean. Zero means tracking is allowed,
@@ -360,6 +373,75 @@ public final class OaidSpoof {
             }
             reply.writeString(valueFor(index, data));
             return true;
+        }
+
+        /**
+         * HONOR answers in two shapes. The sync getters return through the reply parcel, the async
+         * ones take an IOAIDCallBack and answer through it; a value written into the reply of the
+         * latter would never be read and the SDK would sit on its latch until it timed out.
+         */
+        private boolean answerHonor(Parcel reply, Parcel data, int index) {
+            reply.writeNoException();
+            switch (index) {
+                case 0:
+                    // basicTypes(int, long, boolean, float, double, String), returns nothing.
+                    return true;
+                case 1: {
+                    Bundle bundle = new Bundle();
+                    bundle.putString("oa_id_flag", oaid);
+                    sendHonorCallback(data, bundle);
+                    return true;
+                }
+                case 2:
+                    reply.writeString(oaid);
+                    return true;
+                case 3: {
+                    Bundle bundle = new Bundle();
+                    bundle.putBoolean("oa_id_limit_state", false);
+                    sendHonorCallback(data, bundle);
+                    return true;
+                }
+                case 4:
+                    reply.writeInt(0);
+                    return true;
+                default:
+                    reply.writeString(oaid);
+                    return true;
+            }
+        }
+
+        /** Calls IOAIDCallBack.handleResult(0, bundle) on the callback the caller handed over. */
+        private void sendHonorCallback(Parcel data, Bundle bundle) {
+            IBinder callback = null;
+            try {
+                int start = data.dataPosition();
+                data.setDataPosition(0);
+                skipInterfaceToken(data);
+                callback = data.readStrongBinder();
+                data.setDataPosition(start);
+            } catch (Throwable e) {
+                return;
+            }
+            if (callback == null) {
+                return;
+            }
+            Parcel out = Parcel.obtain();
+            Parcel in = Parcel.obtain();
+            try {
+                out.writeInterfaceToken(HONOR_CALLBACK);
+                out.writeInt(0);
+                // An in Bundle travels as a typed object: a 1 for "present", then the parcel.
+                // writeBundle would leave that marker out, and the generated Stub, which reads an
+                // int and then Bundle.CREATOR.createFromParcel, would parse from the wrong offset.
+                out.writeInt(1);
+                bundle.writeToParcel(out, 0);
+                callback.transact(HONOR_HANDLE_RESULT, out, in, IBinder.FLAG_ONEWAY);
+            } catch (Throwable e) {
+                Slog.w(TAG, "HONOR callback failed: " + e.getMessage());
+            } finally {
+                out.recycle();
+                in.recycle();
+            }
         }
 
         private String valueFor(int index, Parcel data) {

@@ -26,3 +26,8 @@
 -keep class android.** {*; }
 -keep class com.android.** {*; }
 
+
+# The clone's own copy of the MIUI identifier provider must keep its name: the runtime rejects a
+# class loader that answers a lookup with a differently named class.
+-keep class com.android.id.impl.** { *; }
+

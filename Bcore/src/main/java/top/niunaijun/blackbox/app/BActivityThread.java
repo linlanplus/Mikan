@@ -72,6 +72,7 @@ import top.niunaijun.blackbox.entity.AppConfig;
 import top.niunaijun.blackbox.entity.am.ReceiverData;
 
 import top.niunaijun.blackbox.fake.delegate.AppInstrumentation;
+import top.niunaijun.blackbox.fake.device.VendorClassShim;
 import top.niunaijun.blackbox.fake.network.ProxyConfig;
 import top.niunaijun.blackbox.fake.delegate.ContentProviderDelegate;
 
@@ -421,6 +422,8 @@ public class BActivityThread extends IBActivityThread.Stub {
 
         try {
             ClassLoader cl = BRLoadedApk.get(loadedApk).getClassLoader();
+            // Vendors that hand out their identifier through reflection, not through a service.
+            VendorClassShim.install(cl);
             boolean hasApacheLegacy;
             try {
                 Class.forName("org.apache.http.entity.InputStreamEntity", false, cl);
