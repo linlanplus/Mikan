@@ -8,6 +8,7 @@ import java.util.Set;
 import black.android.content.BRAttributionSource;
 import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.BlackBoxCore;
+import top.niunaijun.blackbox.fake.device.OaidSpoof;
 import top.niunaijun.blackbox.fake.hook.ClassInvocationStub;
 import top.niunaijun.blackbox.utils.compat.ContextCompat;
 import top.niunaijun.blackbox.utils.Slog;
@@ -95,7 +96,15 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
             methodName.equals("update") || methodName.equals("delete") || 
             methodName.equals("bulkInsert") || methodName.equals("call")) {
             boolean samsungIsChildCall = isSamsungAccountIsChildCall(args);
-            
+
+            if ("query".equals(methodName)) {
+                // vivo reads its OAID from a content provider, not from a bound service.
+                android.database.Cursor spoofedOaid = OaidSpoof.answerVivoQuery(args);
+                if (spoofedOaid != null) {
+                    return spoofedOaid;
+                }
+            }
+
             try {
                 Object result = method.invoke(mBase, args);
                 if (samsungIsChildCall) {

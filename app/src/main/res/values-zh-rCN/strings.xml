@@ -118,6 +118,8 @@
     <string name="device_spoofing_manufacturer">设备厂商</string>
     <string name="device_spoofing_model">设备型号</string>
     <string name="device_spoofing_android_id">Android ID</string>
+    <string name="device_spoofing_oaid">OAID（广告标识）</string>
+    <string name="device_spoofing_invalid_oaid">OAID 必须是 32 位十六进制字符，或 36 位带连字符的 UUID</string>
     <string name="device_spoofing_accept_change">保存修改</string>
     <string name="device_spoofing_reset_to_default">恢复自动分配的机型</string>
     <string name="device_spoofing_saved">已保存，重启分身后生效</string>

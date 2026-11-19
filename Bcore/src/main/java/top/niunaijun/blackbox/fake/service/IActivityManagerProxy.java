@@ -42,6 +42,7 @@ import top.niunaijun.blackbox.entity.am.RunningServiceInfo;
 import top.niunaijun.blackbox.fake.delegate.ContentProviderDelegate;
 import top.niunaijun.blackbox.fake.delegate.InnerReceiverDelegate;
 import top.niunaijun.blackbox.fake.delegate.ServiceConnectionDelegate;
+import top.niunaijun.blackbox.fake.device.OaidSpoof;
 import top.niunaijun.blackbox.fake.frameworks.BActivityManager;
 import top.niunaijun.blackbox.fake.frameworks.BPackageManager;
 import top.niunaijun.blackbox.fake.hook.ClassInvocationStub;
@@ -220,6 +221,10 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                 if (auth.equals("settings")
                         || auth.equals("media")
                         || auth.equals("telephony")
+                        // vivo serves its OAID from a provider; the answer is spoofed in
+                        // ContentProviderStub. A host that is not vivo has no such provider and
+                        // gets a null holder, which is what a real phone of that vendor returns.
+                        || ((String) auth).startsWith("com.vivo.vms")
                         || ((String) auth).contains("com.google.android.gms")
                         || ((String) auth).contains("com.android.vending")
                         || ((String) auth).contains("com.google.android.gsf")
@@ -227,7 +232,9 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                         || auth.equals("com.huawei.android.launcher.settings")
                         || auth.equals("com.hihonor.android.launcher.settings")) {
                     content = method.invoke(who, args);
-                    ContentProviderDelegate.update(content, (String) auth);
+                    if (content != null) {
+                        ContentProviderDelegate.update(content, (String) auth);
+                    }
                     return content;
                 } else {
                     
@@ -462,6 +469,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                 return method.invoke(who, args);
             }
 
+            if (OaidSpoof.tryFakeBind(intent, connection)) {
+                // The clone's OAID service is answered locally; the vendor service is never asked.
+                return 1;
+            }
+
             
 
             int userId = intent.getIntExtra("_B_|_UserId", -1);
@@ -580,6 +592,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             IServiceConnection iServiceConnection = (IServiceConnection) args[0];
             if (iServiceConnection == null) {
                 return method.invoke(who, args);
+            }
+            if (OaidSpoof.consumeFakedConnection(iServiceConnection.asBinder())) {
+                // That bind never reached the system, so the unbind must not either. The AIDL
+                // returns boolean from Android 10 on, and a proxy answers null with an NPE.
+                return true;
             }
             BlackBoxCore.getBActivityManager().unbindService(iServiceConnection.asBinder(), BActivityThread.getUserId());
             ServiceConnectionDelegate delegate = ServiceConnectionDelegate.getDelegate(iServiceConnection.asBinder());

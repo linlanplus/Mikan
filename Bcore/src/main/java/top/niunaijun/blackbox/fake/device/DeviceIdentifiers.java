@@ -139,6 +139,11 @@ public final class DeviceIdentifiers {
                 h[0] & 0xff, h[1] & 0xff, h[2] & 0xff, h[3] & 0xff, h[4] & 0xff, h[5] & 0xff);
     }
 
+    /** The clone's OAID, already in the shape the pose vendor prints. Empty for Google presets. */
+    public static String oaid() {
+        return profile().oaid;
+    }
+
     /** Hex digits for the clone's advertising IDs, stable until "random device". */
     public static String hex(String label, int length) {
         byte[] h = hash(label);

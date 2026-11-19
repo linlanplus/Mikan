@@ -18,14 +18,23 @@ public final class DeviceBuildSpoofer {
         if (profile == null) {
             return;
         }
+        // Build.VERSION stays the real one: applications branch on it, and a spoofed value sends
+        // them down paths this framework does not implement.
         setStaticStringField("MANUFACTURER", profile.manufacturer);
         setStaticStringField("BRAND", profile.brand);
         setStaticStringField("MODEL", profile.model);
         setStaticStringField("DEVICE", profile.device);
         setStaticStringField("PRODUCT", profile.product);
         setStaticStringField("FINGERPRINT", profile.fingerprint);
-        setStaticStringField("DISPLAY", DeviceSpoofManager.displayId());
+        setStaticStringField("BOARD", profile.board);
+        setStaticStringField("HARDWARE", profile.hardware);
+        setStaticStringField("DISPLAY", DeviceSpoofManager.displayId(profile));
         setStaticStringField(Build.VERSION.class, "INCREMENTAL", DeviceSpoofManager.incremental(profile.serial));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Build.SOC_MANUFACTURER and Build.SOC_MODEL arrive with Android 12.
+            setStaticStringField("SOC_MANUFACTURER", profile.socManufacturer);
+            setStaticStringField("SOC_MODEL", profile.socModel);
+        }
         if (DeviceIdentifiers.exposesBuildSerial()) {
             setStaticStringField("SERIAL", profile.serial);
         }

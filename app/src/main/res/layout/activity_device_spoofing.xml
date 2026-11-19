@@ -104,6 +104,21 @@
                         android:maxLines="1" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <com.google.android.material.textfield.TextInputLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:hint="@string/device_spoofing_oaid">
+
+                <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/oaid_edit"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:inputType="textVisiblePassword"
+                        android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+
             <com.google.android.material.button.MaterialButton
                     android:id="@+id/accept_change_button"
                     android:layout_width="match_parent"
