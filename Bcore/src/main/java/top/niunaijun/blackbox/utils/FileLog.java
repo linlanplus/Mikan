@@ -46,6 +46,11 @@ public final class FileLog {
         return new File(context.getFilesDir(), DIR_NAME);
     }
 
+    /** This process's log file; the native crash report appends to it too. */
+    public static File getProcessLogFile(Context context) {
+        return new File(getLogDir(context), currentProcessName().replace(':', '_') + ".log");
+    }
+
     /** Starts writing queued and future lines; call once the host context is known. */
     public static synchronized void init(Context context) {
         if (sWriterStarted || context == null) {
@@ -55,7 +60,7 @@ public final class FileLog {
         if (!dir.exists() && !dir.mkdirs()) {
             return;
         }
-        File file = new File(dir, currentProcessName().replace(':', '_') + ".log");
+        File file = getProcessLogFile(context);
         sWriterStarted = true;
         Thread writer = new Thread(() -> writeLoop(file), "FileLog");
         writer.setDaemon(true);

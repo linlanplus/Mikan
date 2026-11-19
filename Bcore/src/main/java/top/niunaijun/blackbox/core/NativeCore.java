@@ -41,6 +41,9 @@ public class NativeCore {
     /** Replaces the system property overrides of this process; names[i] reads as values[i]. */
     public static native void setPropOverrides(String[] names, String[] values);
 
+    /** Reports fatal native signals of this process into the given log file. Call once. */
+    public static native void installCrashLog(String path);
+
     /**
      * Routes this process's outbound TCP through a SOCKS5 proxy. An empty host turns it off.
      * Affects the whole process, so call it once the guest uid is known.
