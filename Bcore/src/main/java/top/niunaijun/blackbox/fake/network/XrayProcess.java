@@ -13,12 +13,17 @@ final class XrayProcess {
     static final int MAX_INPUT = 4 * 1024 * 1024;
     private static final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(
             r -> { Thread t = new Thread(r, "xray-start-timeout"); t.setDaemon(true); return t; });
-    private static Process active;
     private XrayProcess() {}
 
-    private static Process launch(Context context, String mode) throws IOException {
+    static Process launch(Context context, String mode) throws IOException {
         File binary = new File(context.getApplicationInfo().nativeLibraryDir, "libmikanxray.so");
-        Process child = new ProcessBuilder(binary.getAbsolutePath(), mode).start();
+        ProcessBuilder launcher = new ProcessBuilder(binary.getAbsolutePath(), mode);
+        if ("gateway".equals(mode) && android.os.Build.SUPPORTED_ABIS[0].startsWith("x86")) {
+            // ARM native bridges can crash on asynchronous Go signal preemption.
+            launcher.environment().put("GODEBUG", "asyncpreemptoff=1");
+            launcher.environment().put("GOMAXPROCS", "2");
+        }
+        Process child = launcher.start();
         Thread drain = new Thread(() -> {
             try (InputStream errors = child.getErrorStream()) {
                 byte[] buffer = new byte[4096];
@@ -58,6 +63,19 @@ final class XrayProcess {
     }
 
     static int measureLatency(Context context, String outbound) throws Exception {
+        if (CloneVpnService.network(context)!=null) {
+            JSONObject ob=new JSONObject(outbound);
+            String server=ob.getJSONObject("settings").getString("address");
+            String pin=ProxyConfig.numeric(server)?server:CloneVpnService.physicalAddress(context,server);
+            try (java.net.Socket socket=new java.net.Socket()) {
+                socket.connect(new java.net.InetSocketAddress("10.112.0.2",5355),2000);
+                socket.setSoTimeout(9000);
+                String request=new JSONObject().put("Outbound",ob).put("Pin",pin).toString()+"\n";
+                socket.getOutputStream().write(request.getBytes(StandardCharsets.UTF_8));
+                String result=new BufferedReader(new InputStreamReader(socket.getInputStream(),StandardCharsets.US_ASCII)).readLine();
+                return result==null?-2:Integer.parseInt(result);
+            } catch (java.net.SocketTimeoutException e) {return -1;}
+        }
         Process child = launch(context, "latency");
         ScheduledFuture<?> deadline = timer.schedule(child::destroy, 10, TimeUnit.SECONDS);
         try {
@@ -72,35 +90,4 @@ final class XrayProcess {
         }
     }
 
-    static synchronized int start(Context context, JSONObject outbound, String password) throws Exception {
-        stop();
-        Process child = launch(context, "run");
-        ScheduledFuture<?> deadline = timer.schedule(child::destroy, 12, TimeUnit.SECONDS);
-        try {
-            byte[] request = new JSONObject().put("outbound", outbound).put("password", password)
-                    .toString().getBytes(StandardCharsets.UTF_8);
-            OutputStream input = child.getOutputStream();
-            input.write(request);
-            input.write('\n');
-            input.flush();
-            BufferedReader output = new BufferedReader(new InputStreamReader(child.getInputStream(), StandardCharsets.UTF_8));
-            String ready = output.readLine();
-            if (ready == null || !ready.startsWith("READY ")) throw new IOException("Xray could not start");
-            int port = Integer.parseInt(ready.substring(6));
-            if (port < 1 || port > 65535) throw new IOException("Invalid local port");
-            active = child;
-            return port;
-        } finally {
-            deadline.cancel(false);
-            if (child != active) child.destroy();
-        }
-    }
-
-    static synchronized void stop() {
-        if (active != null) {
-            try { active.getOutputStream().close(); } catch (IOException ignored) {}
-            active.destroy();
-            active = null;
-        }
-    }
 }

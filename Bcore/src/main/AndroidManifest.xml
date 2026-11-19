@@ -397,6 +397,7 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="${applicationId}.networkguard.CONTROL" />
 
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
@@ -537,19 +538,10 @@
             android:excludeFromRecents="true"
             android:theme="@style/LauncherTheme" />
 
-        <service
-            android:name="top.niunaijun.blackbox.proxy.ProxyVpnService"
-            android:enabled="true"
-            android:exported="false"
-            android:permission="android.permission.BIND_VPN_SERVICE"
-            android:foregroundServiceType="specialUse">
-            <intent-filter>
-                <action android:name="android.net.VpnService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
-                android:value="true" />
-        </service>
+        <activity android:name=".fake.network.CloneNetworkActivity" android:exported="false"
+            android:excludeFromRecents="true" android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <service android:name=".fake.network.CloneVpnService" android:exported="true"
+            android:permission="${applicationId}.networkguard.CONTROL" />
 
 
         <activity

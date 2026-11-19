@@ -139,3 +139,22 @@ dependencies {
     implementation 'androidx.work:work-runtime:2.7.1'
 
 }
+
+// The component must have its own Android UID and use the same signing key as the host.
+['debug', 'release'].each { kind ->
+    def cap = kind.capitalize()
+    def assets = layout.buildDirectory.dir("generated/networkGuard/" + kind)
+    def stage = tasks.register("stageNetworkGuard" + cap, Sync) {
+        dependsOn(":network-guard:assemble" + cap)
+        from(project(":network-guard").layout.buildDirectory.dir("outputs/apk/" + kind)) {
+            include "*.apk"
+            rename { "mikan-network-guard.apk" }
+        }
+        into(assets)
+    }
+    android.sourceSets.getByName(kind).assets.srcDir(assets)
+    tasks.matching {
+        it.name == "pre" + cap + "Build" || it.name == "merge" + cap + "Assets" ||
+                (it.name.contains(cap) && it.name.toLowerCase(Locale.ROOT).contains("lint"))
+    }.configureEach { dependsOn(stage) }
+}

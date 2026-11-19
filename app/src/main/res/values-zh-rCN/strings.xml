@@ -93,6 +93,7 @@
     <string name="proxy_use_anyway">仍然使用</string>
     <string name="proxy_direct">直连（不使用代理）</string>
     <string name="proxy_legacy">之前配置的代理</string>
+    <string name="proxy_removed_blocked">原节点已删除，分身已阻断联网</string>
     <string name="proxy_no_nodes">还没有节点。先到设置导入订阅，再给这个分身选择节点。</string>
     <string name="proxy_save_failed">无法读取或保存节点，请重新打开列表后再试。</string>
     <string name="blackbox_gallery_title">小橘分身相册</string>

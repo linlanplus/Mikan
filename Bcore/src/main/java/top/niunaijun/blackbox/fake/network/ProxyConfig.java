@@ -20,12 +20,14 @@ import java.util.Map;
 import java.util.UUID;
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.core.NativeCore;
-import top.niunaijun.blackbox.utils.Slog;
 
 /** The host writes the catalog. Each guest reads one complete snapshot before filesystem redirection. */
 public final class ProxyConfig {
-    private static volatile boolean routesTcp;
-    public static boolean routesTcp() { return routesTcp; }
+    private static volatile boolean selectedProcess, resolverInstalled;
+    public static boolean useCloneDns() { return resolverInstalled && (selectedProcess || NativeCore.cloneDnsActive()); }
+    private static volatile long revision;
+    public static boolean selectedProcess() { return selectedProcess; }
+    static long revision() { return revision; }
     private ProxyConfig() {}
     private static Context context() { return BlackBoxCore.getContext(); }
     private static File file() { return new File(context().getNoBackupFilesDir(), "proxy-nodes.json"); }
@@ -74,6 +76,7 @@ public final class ProxyConfig {
         try {
             try (FileOutputStream out = new FileOutputStream(tmp)) { out.write(data); out.getFD().sync(); }
             Os.rename(tmp.getAbsolutePath(), f.getAbsolutePath());
+            revision++;
         } finally { if (tmp.exists()) tmp.delete(); }
     }
     private static String digest(String s) throws Exception {
@@ -172,10 +175,15 @@ public final class ProxyConfig {
             String nodeId = selected.getString("id");
             JSONObject replacement = updated.get(nodeId);
             if (replacement != null) {
-                if (!outbound(selected).equals(outbound(replacement))) changed.add(clone);
+                if (selected.optBoolean("unavailable") || !outbound(selected).equals(outbound(replacement))
+                        || selected.optBoolean("udp", true) != replacement.optBoolean("udp", true)) changed.add(clone);
+                if (selected.has("pin") && !selected.optBoolean("unavailable")
+                        && server(selected).equals(server(replacement))) {
+                    replacement = new JSONObject(replacement.toString()).put("pin",selected.getString("pin"));
+                }
                 assigned.put(clone, replacement);
             } else if (oldIds.contains(nodeId)) {
-                assigned.put(clone, JSONObject.NULL);
+                assigned.put(clone, new JSONObject().put("id", nodeId).put("unavailable", true));
                 changed.add(clone);
             }
         }
@@ -224,7 +232,8 @@ public final class ProxyConfig {
         for (Iterator<String> it = assigned.keys(); it.hasNext();) {
             String other = it.next();
             JSONObject node = assigned.optJSONObject(other);
-            if (node != null && !current.equals(other) && other.endsWith(":" + pkg)) used.add(outbound(node));
+            if (node != null && !node.optBoolean("unavailable") && !current.equals(other)
+                    && other.endsWith(":" + pkg)) used.add(outbound(node));
         }
         return used;
     }
@@ -254,7 +263,7 @@ public final class ProxyConfig {
         Set<String> used = usedByOtherClones(doc, user, pkg);
         List<Choice> result = choices(doc, null, used);
         JSONObject selected = doc.getJSONObject("assigned").optJSONObject(key(user, pkg));
-        if (selected != null) {
+        if (selected != null && !selected.optBoolean("unavailable")) {
             String id = selected.getString("id");
             for (Choice choice : result) if (id.equals(choice.id)) return result;
             // A 0.9.3 selection can outlive its original subscription.
@@ -297,9 +306,8 @@ public final class ProxyConfig {
     public static synchronized String selectedId(int user, String pkg) throws Exception {
         JSONObject assigned = store().getJSONObject("assigned");
         String clone = key(user, pkg);
-        JSONObject selected = assigned.optJSONObject(clone);
-        if (selected != null) return selected.getString("id");
-        return !assigned.has(clone) && !legacy(user).isEmpty() ? "legacy" : "";
+        if (assigned.has(clone)) return assigned.isNull(clone) ? "" : assigned.getJSONObject(clone).getString("id");
+        return !legacy(user).isEmpty() ? "legacy" : "";
     }
     /** Returns false when a second clone of this app must confirm sharing this endpoint. */
     public static synchronized boolean choose(int user, String pkg, String id, boolean allowShared) throws Exception {
@@ -310,7 +318,7 @@ public final class ProxyConfig {
             assigned.put(clone, JSONObject.NULL);
         } else {
             JSONObject selected = assigned.optJSONObject(clone);
-            if (selected != null && id.equals(selected.optString("id"))) return true;
+            if (selected != null && !selected.optBoolean("unavailable") && id.equals(selected.optString("id"))) return true;
             selected = null;
             JSONObject sources = doc.getJSONObject("sources");
             for (Iterator<String> it = sources.keys(); it.hasNext() && selected == null;) {
@@ -332,34 +340,71 @@ public final class ProxyConfig {
         if (doc.getJSONObject("assigned").remove(key(user, pkg)) != null) save(doc);
     }
 
+    private static String server(JSONObject node) throws Exception {
+        return node.getJSONObject("outbound").getJSONObject("settings").getString("address");
+    }
+    static boolean numeric(String s) {
+        return Os.inet_pton(android.system.OsConstants.AF_INET, s) != null
+                || Os.inet_pton(android.system.OsConstants.AF_INET6, s) != null;
+    }
+    private static JSONObject selected(JSONObject doc, int user, String pkg) throws Exception {
+        JSONObject a=doc.getJSONObject("assigned");
+        String k=key(user,pkg);
+        if (a.has(k)) {
+            if (a.isNull(k)) return null;
+            return a.getJSONObject(k);
+        }
+        String link=legacy(user);
+        if (link.isEmpty()) return null;
+        return XrayProcess.parse(context(), link.getBytes(StandardCharsets.UTF_8))
+                .getJSONArray("nodes").getJSONObject(0).put("id","legacy");
+    }
+    public static synchronized boolean unavailable(int user,String pkg) throws Exception {
+        JSONObject s=store().getJSONObject("assigned").optJSONObject(key(user,pkg));
+        return s!=null && s.optBoolean("unavailable");
+    }
+    static synchronized JSONObject policy(int user,String pkg,JSONObject result) throws Exception {
+        JSONObject s=selected(store(),user,pkg);
+        if (s==null) return result.put("Mode","direct").put("UDP",true);
+        if (s.optBoolean("unavailable")) return result.put("Mode","blocked");
+        return result.put("Mode","node").put("Pin",s.optString("pin")).put("UDP",s.optBoolean("udp",true))
+                .put("Outbound",s.getJSONObject("outbound"));
+    }
+    // Resolving a node's own server is an explicit host operation. Once a
+    // guest is running, the gateway admits only a numeric transport endpoint.
+    static synchronized String unpinnedServer(int user,String pkg) throws Exception {
+        JSONObject node=selected(store(),user,pkg);
+        if (node==null || node.optBoolean("unavailable") || node.has("pin")) return null;
+        String host=server(node);
+        return numeric(host)?null:host;
+    }
+    static void pinForLaunch(int user,String pkg,String approvedHost) throws Exception {
+        JSONObject snapshot;
+        synchronized (ProxyConfig.class) { snapshot=selected(store(),user,pkg); }
+        if (snapshot==null || snapshot.optBoolean("unavailable") || snapshot.has("pin")) return;
+        String host=server(snapshot);
+        if (numeric(host) && !"legacy".equals(snapshot.optString("id"))) return;
+        if (!numeric(host) && !host.equals(approvedHost)) return;
+        String ip=numeric(host)?host:CloneVpnService.physicalAddress(context(),host);
+        synchronized (ProxyConfig.class) {
+            JSONObject doc=store(), actual=selected(doc,user,pkg);
+            if (actual==null || actual.optBoolean("unavailable") || !outbound(snapshot).equals(outbound(actual))) return;
+            doc.getJSONObject("assigned").put(key(user,pkg),actual.put("pin",ip));
+            save(doc);
+        }
+    }
     public static void applyToCurrentProcess(int user, String pkg) {
         try {
-            JSONObject assigned = store().getJSONObject("assigned");
-            String clone = key(user, pkg);
-            JSONObject selected = assigned.optJSONObject(clone);
-            if (selected == null && !assigned.has(clone)) {
-                String link = legacy(user);
-                if (!link.isEmpty()) {
-                    JSONObject imported = XrayProcess.parse(context(), link.getBytes(StandardCharsets.UTF_8));
-                    selected = imported.getJSONArray("nodes").getJSONObject(0);
-                }
-            }
-            if (selected == null) {
-                routesTcp = false;
-                XrayProcess.stop();
-                NativeCore.setProxy("", 0, "", "");
-                return;
-            }
-            String password = UUID.randomUUID().toString();
-            int port = XrayProcess.start(context(), selected.getJSONObject("outbound"), password);
-            NativeCore.setProxy("127.0.0.1", port, "mikan", password);
-            routesTcp = true;
-            Slog.d("ProxyConfig", "Xray ready for user " + user + ", protocol " + selected.getString("protocol"));
+            selectedProcess=!selectedId(user,pkg).isEmpty();
+            NativeCore.installCloneDns(selectedProcess,CloneVpnService.controlName());
+            resolverInstalled=true;
+            if (!selectedProcess) return;
+            android.net.Network n=BlackBoxCore.getBActivityManager().getService().cloneNetwork();
+            if (n==null || !android.net.ConnectivityManager.setProcessDefaultNetwork(n))
+                throw new IOException("Clone VPN unavailable");
         } catch (Exception e) {
-            XrayProcess.stop();
-            NativeCore.setProxy("", -1, "", "");
-            routesTcp = true;
-            Slog.e("ProxyConfig", "Failed to start the selected proxy; guest TCP is blocked");
+            // Guest code must not execute with the host's default network on a failed bind.
+            throw new SecurityException("Cannot bind this clone to its proxy network",e);
         }
     }
 }

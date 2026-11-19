@@ -1,4 +1,4 @@
-// Each test runs in its own short-lived process; it never changes a clone's running Xray instance.
+// A latency test owns a separate outbound and never changes an active clone's route.
 package main
 
 import (
@@ -25,6 +25,10 @@ func measureLatency(outbound json.RawMessage, target string, timeout time.Durati
 	}
 	defer instance.Close()
 
+	return latencyThrough(instance, target, timeout)
+}
+
+func latencyThrough(instance *core.Instance, target string, timeout time.Duration) int64 {
 	transport := &http.Transport{DisableKeepAlives: true, DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dest, err := xnet.ParseDestination("tcp:" + addr)
 		if err != nil {

@@ -1,11 +1,10 @@
 package top.niunaijun.blackbox.fake.service.libcore;
 
 import android.os.Process;
-import android.system.ErrnoException;
-import java.io.FileDescriptor;
+import android.system.Os;
+import android.system.OsConstants;
+import java.util.ArrayList;
 import java.net.InetAddress;
-import java.net.Inet6Address;
-import java.net.InetSocketAddress;
 
 import java.lang.reflect.Method;
 
@@ -51,20 +50,27 @@ public class OsStub extends ClassInvocationStub {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        if (ProxyConfig.routesTcp() && "connect".equals(method.getName()) && args != null
-                && args.length >= 2 && args[0] instanceof FileDescriptor) {
-            InetSocketAddress target = null;
-            if (args.length == 3 && args[1] instanceof InetAddress && args[2] instanceof Integer) {
-                target = new InetSocketAddress((InetAddress) args[1], (Integer) args[2]);
-            } else if (args[1] instanceof InetSocketAddress) {
-                target = (InetSocketAddress) args[1];
-            }
-            if (target != null && !target.isUnresolved()) {
-                InetAddress ip = target.getAddress();
-                int scope = ip instanceof Inet6Address ? ((Inet6Address) ip).getScopeId() : 0;
-                int result = NativeCore.tryProxyConnect((FileDescriptor) args[0], ip.getAddress(), target.getPort(), scope);
-                if (result < 0) throw new ErrnoException("connect", -result);
-                if (result > 0) return null;
+        if ("android_getaddrinfo".equals(method.getName()) && ProxyConfig.useCloneDns() && args != null
+                && args.length >= 2 && args[0] instanceof String && args[1] != null) {
+            String host=(String)args[0];
+            Object hints=args[1];
+            int flags=hints.getClass().getField("ai_flags").getInt(hints);
+            if ((flags & OsConstants.AI_NUMERICHOST)==0 && !host.equalsIgnoreCase("localhost")
+                    && !host.equalsIgnoreCase("localhost.") && Os.inet_pton(OsConstants.AF_INET,host)==null
+                    && Os.inet_pton(OsConstants.AF_INET6,host)==null) {
+                int family=hints.getClass().getField("ai_family").getInt(hints);
+                ArrayList<InetAddress> addresses=new ArrayList<>();
+                boolean temporary=false;
+                for (int af:new int[]{OsConstants.AF_INET,OsConstants.AF_INET6}) {
+                    if (family!=OsConstants.AF_UNSPEC && family!=af) continue;
+                    byte[][] ips=NativeCore.cloneDns(host,af);
+                    if (ips==null) {temporary=true;continue;}
+                    for (byte[] bytes:ips) addresses.add(InetAddress.getByAddress(host,bytes));
+                }
+                if (addresses.isEmpty()) throw (Throwable)Class.forName("android.system.GaiException")
+                        .getConstructor(String.class,int.class).newInstance("getaddrinfo",
+                                temporary?OsConstants.EAI_AGAIN:OsConstants.EAI_NONAME);
+                return addresses.toArray(new InetAddress[0]);
             }
         }
         if (args != null) {

@@ -43,6 +43,8 @@ Hook/UnixFileSystemHook.cpp \
 Hook/BinderHook.cpp \
 Hook/BaseHook.cpp \
 Hook/ProxyHook.cpp \
+Hook/FlowOwner.cpp \
+Hook/CloneDns.cpp \
 JniHook/JniHook.cpp
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)

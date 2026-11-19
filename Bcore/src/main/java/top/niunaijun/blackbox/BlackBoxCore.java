@@ -963,7 +963,7 @@ public class BlackBoxCore extends ClientConfiguration {
         }
         
         
-        initVpnService();
+
         
         HookManager.get().init();
     }
@@ -1121,6 +1121,7 @@ public class BlackBoxCore extends ClientConfiguration {
             }
         }
 
+        if (top.niunaijun.blackbox.fake.network.CloneNetworkActivity.openIfSelected(getContext(), packageName, userId)) return true;
         Intent launchIntentForPackage = getBPackageManager().getLaunchIntentForPackage(packageName, userId);
         if (launchIntentForPackage == null) {
             return false;
@@ -1703,61 +1704,6 @@ public class BlackBoxCore extends ClientConfiguration {
             }
         } catch (Exception e) {
             Slog.w(TAG, "Failed to set essential properties: " + e.getMessage());
-        }
-    }
-    
-    
-    private void initVpnService() {
-        try {
-            
-            if (mClientConfiguration == null || !mClientConfiguration.isUseVpnNetwork()) {
-                Slog.d(TAG, "VPN network mode disabled, using normal network");
-                return;
-            }
-
-            // Safety: the current ProxyVpnService implementation does not implement packet
-            // forwarding (TUN read/write + TCP/UDP handling). On modern Android (including API 36),
-            // establishing a VPN with a default route will black-hole the app’s traffic.
-            // Until a real tunnel implementation exists, skip starting the VPN to preserve
-            // normal internet connectivity.
-            if (Build.VERSION.SDK_INT >= 34) {
-                Slog.w(TAG, "VPN network mode requested but disabled on this Android version (stub VPN would break connectivity). Falling back to normal network.");
-                try {
-                    // Best-effort: stop any previously started instance after upgrade.
-                    Intent stopIntent = new Intent(getContext(), top.niunaijun.blackbox.proxy.ProxyVpnService.class);
-                    getContext().stopService(stopIntent);
-                } catch (Throwable ignored) {
-                }
-                return;
-            }
-            
-            
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        
-                        Intent vpnIntent = new Intent(getContext(), top.niunaijun.blackbox.proxy.ProxyVpnService.class);
-                        vpnIntent.setAction("android.net.VpnService");
-                        
-                        if (BuildCompat.isOreo()) {
-                            getContext().startForegroundService(vpnIntent);
-                        } else {
-                            getContext().startService(vpnIntent);
-                        }
-                        
-                        Slog.d(TAG, "VPN service started successfully for internet access");
-                    } catch (Exception e) {
-                        Slog.w(TAG, "Failed to start VPN service: " + e.getMessage());
-                        
-                        
-                    }
-                }
-            }, "VPNServiceInit").start();
-            
-        } catch (Exception e) {
-            Slog.w(TAG, "Failed to initialize VPN service: " + e.getMessage());
-            
         }
     }
     

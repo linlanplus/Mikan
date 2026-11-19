@@ -6,6 +6,7 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
 
+    sourceSets.main.aidl.srcDir(rootProject.file("network-guard/src/main/aidl"))
     aidlPackagedList "android/app/IServiceConnection.aidl"
     aidlPackagedList "android/accounts/IAccountManagerResponse.aidl"
     buildFeatures {
@@ -70,28 +71,13 @@ android {
 }
 
 
-// On Windows, aidl writes source paths into comments of the generated Java files.
-// A path segment like "\user\" is then read by javac as an illegal \u escape.
-tasks.withType(com.android.build.gradle.tasks.AidlCompile).configureEach { task ->
-    task.doLast {
-        fileTree(task.sourceOutputDir.get().asFile).matching { include '**/*.java' }.each { f ->
-            def text = f.getText('UTF-8')
-            def fixed = text.readLines().collect { line ->
-                line.trim().startsWith('*') ? line.replace('\\', '/') : line
-            }.join('\n') + '\n'
-            if (fixed != text) {
-                f.write(fixed, 'UTF-8')
-            }
-        }
-    }
-}
+apply from: rootProject.file('gradle/aidl-comments.gradle')
 
 tasks.withType(Javadoc) {
     options.addStringOption('Xdoclint:none', '-quiet')
     options.addStringOption('encoding', 'UTF-8')
     options.addStringOption('charSet', 'UTF-8')
 }
-
 
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])

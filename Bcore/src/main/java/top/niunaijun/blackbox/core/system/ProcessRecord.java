@@ -17,6 +17,7 @@ public class ProcessRecord extends Binder {
     final public String processName;
     public IBActivityThread bActivityThread;
     public IInterface appThread;
+    android.content.ContentProviderClient networkProvider;
     public int uid;
     public int pid;
     public int buid;

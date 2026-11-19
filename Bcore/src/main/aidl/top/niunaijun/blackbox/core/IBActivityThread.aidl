@@ -24,4 +24,5 @@ interface IBActivityThread {
     void handleNewIntent(IBinder token, in Intent intent);
 
     void scheduleReceiver(in ReceiverData data);
+    long socketOwner(int type, String src, int sp, String dst, int dp);
 }

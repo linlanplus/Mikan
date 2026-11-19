@@ -11,7 +11,7 @@ An ad-free Android app cloner with no limit on the number of clones. No root nee
 - **不限数量的分身：** 同一个应用可以开 3 个、5 个甚至更多。每个分身的数据和登录状态互相独立。
 - **每个分身一台"不同的手机"：** 自动给每个分身分配不同的机型、设备名、Android ID 和序列号，也可以手动修改，内置 25 款常见机型。
 - **用户和文件夹：** 按"用户"分组管理分身，用文件夹整理，和桌面一样长按拖动。
-- 在 **设置 → 设置链式代理** 中导入订阅或节点链接。首次保存后，这个入口变为 **我的链式代理**。长按分身可选择节点或测延迟。内置 Xray 支持 VMess、VLESS、Trojan 和 Shadowsocks，代理该分身的 TCP 连接。UDP 和 DNS 使用设备网络。
+- 在 **设置 → 设置链式代理** 中导入订阅或节点链接。首次保存后，这个入口变为 **我的链式代理**。长按分身可选择节点或测延迟。内置 Xray 支持 VMess、VLESS、Trojan、Shadowsocks 和 SOCKS5。首次启动已选节点的分身时，按提示安装随包提供的网络组件并授权 Android VPN。该分身的 TCP、UDP 和域名查询都经所选节点转发。节点服务器本身使用域名时，首次连接会询问是否允许设备解析这个服务器地址。节点禁用 UDP 时阻断 UDP，域名可经节点使用 TCP 查询。节点失效或被删除后分身保持断网，直至重新选择。
 - **重命名：** 给分身改显示名称，不影响应用本身。
 - 在 **设置 → 相册管理** 为指定用户名选择照片或撤销授权。按用户选图无需开启完整系统相册访问。
 - 在 **GMS 管理** 按首页用户名设置 Google 服务，之后新建或移入的分身会跟随该设置。
@@ -23,7 +23,7 @@ An ad-free Android app cloner with no limit on the number of clones. No root nee
 - **Unlimited clones:** run three, five or more copies of the same app, each with its own data and login.
 - **A different phone per clone:** every clone gets its own model, device name, Android ID and serial number automatically. You can also pick one of 25 built-in phone models or edit them by hand.
 - **Users and folders:** group clones into "users" and organise them in folders with launcher-style drag and drop.
-- Import subscriptions or node links in **Settings → Set up proxy subscriptions**. After the first save, this entry becomes **My proxy subscriptions**. Long-press a clone to choose a node or test latency. The embedded Xray core routes the clone’s TCP connections over VMess, VLESS, Trojan or Shadowsocks. UDP and DNS use the device network.
+- Import subscriptions or node links in **Settings → Set up proxy subscriptions**. After the first save, this entry becomes **My proxy subscriptions**. Long-press a clone to choose a node or test latency. The bundled Xray core supports VMess, VLESS, Trojan, Shadowsocks and SOCKS5. When first launching an assigned clone, install the bundled network component and grant Android VPN access. TCP, UDP and DNS follow the selected node. If the node itself uses a hostname, the first launch asks before resolving its server address on the device network. Nodes with UDP disabled can still carry DNS over TCP. An unavailable or removed node blocks traffic until the user chooses a working node or explicitly switches to Direct.
 - **Rename:** change the name a clone is shown with, without touching the app itself.
 - In **Settings → Album management**, choose photos for a named user or revoke access to individual photos. This works without full system gallery access.
 - **GMS Manager** controls Google services per home-screen user. New and moved clones inherit that user’s setting.

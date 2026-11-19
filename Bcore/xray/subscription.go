@@ -19,6 +19,7 @@ type node struct {
 	Name     string `json:"name"`
 	Protocol string `json:"protocol"`
 	Outbound object `json:"outbound"`
+	UDP      *bool  `json:"udp,omitempty"`
 }
 type catalog struct {
 	Nodes   []node `json:"nodes"`
@@ -298,7 +299,12 @@ func convert(m object) (node, error) {
 	if _, err = parsed.Build(); err != nil {
 		return n, err
 	}
-	return node{fallback(field(m, "name"), net.JoinHostPort(addr, strconv.Itoa(port))), proto, outbound}, nil
+	n = node{Name: fallback(field(m, "name"), net.JoinHostPort(addr, strconv.Itoa(port))), Protocol: proto, Outbound: outbound}
+	if _, present := m["udp"]; present {
+		enabled := flag(m, "udp")
+		n.UDP = &enabled
+	}
+	return n, nil
 }
 
 func transport(m object) (object, error) {

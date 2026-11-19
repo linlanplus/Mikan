@@ -41,6 +41,7 @@
     <string name="proxy_use_anyway">Use anyway</string>
     <string name="proxy_direct">Direct connection</string>
     <string name="proxy_legacy">Previously configured proxy</string>
+    <string name="proxy_removed_blocked">The selected node was removed. This clone is offline.</string>
     <string name="proxy_no_nodes">Import a subscription in Settings first, then choose a node for this clone.</string>
     <string name="proxy_save_failed">Could not read or save the selection. Reopen the node list and try again.</string>
     <string name="blackbox_gallery_title">Mikan Gallery</string>

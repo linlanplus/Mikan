@@ -46,6 +46,50 @@ public class BProcessManagerService implements ISystemService {
         return sBProcessManagerService;
     }
 
+    private static void releaseNetworkProvider(ProcessRecord process) {
+        synchronized (process) {
+            if (process.networkProvider != null) {
+                process.networkProvider.release();
+                process.networkProvider = null;
+            }
+        }
+    }
+
+    public void releaseNetworkProviders(boolean stopSelected) {
+        List<ProcessRecord> snapshot;
+        synchronized (mProcessLock) { snapshot = new ArrayList<>(mPidsSelfLocked); }
+        for (ProcessRecord process : snapshot) {
+            releaseNetworkProvider(process);
+            if (stopSelected) {
+                try {
+                    if (!top.niunaijun.blackbox.fake.network.ProxyConfig.selectedId(process.userId,process.getPackageName()).isEmpty()) process.kill();
+                } catch (Exception unreadable) { process.kill(); }
+            }
+        }
+    }
+
+    public String socketOwner(int type, String src, int sp, String dst, int dp) throws RemoteException {
+        List<ProcessRecord> snapshot;
+        synchronized (mProcessLock) { snapshot = new ArrayList<>(mPidsSelfLocked); }
+        String owner = "";
+        for (ProcessRecord process : snapshot) {
+            IBActivityThread thread = process.bActivityThread;
+            if (thread == null || !thread.asBinder().isBinderAlive()) continue;
+            // A live provider dependency keeps Android from freezing a process in the middle of a synchronous Binder query.
+            synchronized (process) {
+                if (process.networkProvider == null) {
+                    process.networkProvider = BlackBoxCore.getContext().getContentResolver()
+                            .acquireUnstableContentProviderClient(process.getProviderAuthority());
+                    if (process.networkProvider == null) return "blocked";
+                }
+            }
+            long inode = thread.socketOwner(type, src, sp, dst, dp);
+            if (inode < 0 || (inode > 0 && !owner.isEmpty())) return "blocked";
+            if (inode > 0) owner = process.userId + ":" + process.getPackageName() + ":" + process.pid + ":" + inode;
+        }
+        return owner;
+    }
+
     public ProcessRecord startProcessLocked(String packageName, String processName, int userId, int bpid, int callingPid) {
         ApplicationInfo info = BPackageManagerService.get().getApplicationInfo(packageName, 0, userId);
         if (info == null)
@@ -193,15 +237,18 @@ public class BProcessManagerService implements ISystemService {
         synchronized (mProcessLock) {
             record.kill();
             Map<String, ProcessRecord> process = mProcessMap.get(record.buid);
-            if (process != null) {
+            if (process != null && process.get(record.processName) == record) {
                 process.remove(record.processName);
                 if (process.isEmpty()) {
                     mProcessMap.remove(record.buid);
                 }
             }
             mPidsSelfLocked.remove(record);
+            releaseNetworkProvider(record);
 
-            removeProc(record);
+            boolean reused = false;
+            for (ProcessRecord live : mPidsSelfLocked) if (live.bpid == record.bpid) { reused = true; break; }
+            if (!reused) removeProc(record);
             BNotificationManagerService.get().deletePackageNotification(record.getPackageName(), record.userId);
         }
     }
@@ -227,6 +274,7 @@ public class BProcessManagerService implements ISystemService {
                     if (appId == appId1) {
                         mProcessMap.remove(processRecord.buid);
                         tmp.remove(processRecord);
+                        releaseNetworkProvider(processRecord);
                         processRecord.kill();
                     }
                 }
@@ -243,6 +291,7 @@ public class BProcessManagerService implements ISystemService {
             if (process == null)
                 return;
             for (ProcessRecord value : process.values()) {
+                releaseNetworkProvider(value);
                 value.kill();
                 mPidsSelfLocked.remove(value);
             }

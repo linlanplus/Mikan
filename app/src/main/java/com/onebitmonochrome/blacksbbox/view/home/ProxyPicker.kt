@@ -38,6 +38,7 @@ internal fun HomeFragment.showProxyPicker(clone: CloneStore.Clone) {
         val latency = mutableMapOf<String, Int>()
         fun displayRows(sortByLatency: Boolean): List<ProxyRow> {
             val rows = mutableListOf(ProxyRow(getString(R.string.proxy_direct), ""))
+            if (ProxyConfig.unavailable(clone.userId, clone.packageName)) rows.add(ProxyRow(getString(R.string.proxy_removed_blocked)))
             if (current == "legacy") rows.add(ProxyRow(getString(R.string.proxy_legacy), current))
             for (used in listOf(false, true)) {
                 var group = nodes.filter { it.used == used }

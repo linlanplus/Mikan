@@ -1,0 +1,29 @@
+plugins { alias(libs.plugins.android.application) }
+
+def props = new Properties()
+def propsFile = file(findProperty("mikan.keystore") ?: rootProject.file("keystore.properties"))
+if (propsFile.exists()) propsFile.withInputStream { props.load(it) }
+android {
+    namespace 'uk.lqstudio.guard'
+    compileSdk rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId (providers.gradleProperty('mikan.guardHost').orElse('uk.lqstudio.mikan').get() + '.networkguard')
+        minSdk rootProject.ext.minSdk
+        targetSdk rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName '1'
+    }
+    buildFeatures { aidl true }
+    signingConfigs {
+        if (props.getProperty('storeFile')) release {
+            storeFile file(props.getProperty('storeFile'))
+            storePassword props.getProperty('storePassword')
+            keyAlias props.getProperty('keyAlias')
+            keyPassword props.getProperty('keyPassword')
+        }
+    }
+    buildTypes { release { signingConfig props.getProperty('storeFile') ? signingConfigs.release : signingConfigs.debug } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_21; targetCompatibility JavaVersion.VERSION_21 }
+}
+
+apply from: rootProject.file('gradle/aidl-comments.gradle')

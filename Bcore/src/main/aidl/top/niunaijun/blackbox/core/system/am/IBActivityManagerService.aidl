@@ -47,6 +47,10 @@ interface IBActivityManagerService {
     void onFinishActivity(IBinder token);
 
     RunningAppProcessInfo getRunningAppProcesses(String callerPackage, int userId);
+    String socketOwner(int type, String src, int sp, String dst, int dp);
+    android.net.Network cloneNetwork();
+    void publishCloneNetwork(in android.net.Network network, IBinder owner);
+    void releaseNetworkProviders(boolean stopSelected);
     RunningServiceInfo getRunningServices(String callerPackage, int userId);
 
     void scheduleBroadcastReceiver(in Intent intent, in PendingResultData pendingResultData, int userId);

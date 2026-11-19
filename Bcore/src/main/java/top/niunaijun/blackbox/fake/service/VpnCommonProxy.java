@@ -29,6 +29,7 @@ public class VpnCommonProxy {
 
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (top.niunaijun.blackbox.fake.network.ProxyConfig.selectedProcess()) return false;
             MethodParameterUtils.replaceFirstAppPkg(args);
             return method.invoke(who, args);
         }
@@ -39,6 +40,7 @@ public class VpnCommonProxy {
 
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            if (top.niunaijun.blackbox.fake.network.ProxyConfig.selectedProcess()) return null;
             VpnConfigContext vpnConfigContext = BRVpnConfig.get(args[0]);
             vpnConfigContext._set_user(ProxyVpnService.class.getName());
 

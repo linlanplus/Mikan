@@ -565,6 +565,12 @@ public class IPackageManagerProxy extends BinderInvocationStub {
 
 
 
+            // Android reads the real host's preloaded-font metadata while starting a fresh stub process.
+            if (BlackBoxCore.getHostPkg().equals(packageName) && !BActivityThread.currentActivityThread().isInit()) {
+                Object[] hostArgs = args.clone();
+                hostArgs[hostArgs.length - 1] = BlackBoxCore.getHostUserId();
+                return method.invoke(who, hostArgs);
+            }
             ApplicationInfo applicationInfo = BlackBoxCore.getBPackageManager().getApplicationInfo(packageName, flags, BlackBoxCore.getUserId());
             if (applicationInfo != null) {
                 return applicationInfo;

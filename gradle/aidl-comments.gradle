@@ -1,0 +1,16 @@
+// On Windows, aidl writes source paths into comments of the generated Java files.
+// A path segment like "\user\" is then read by javac as an illegal \u escape.
+tasks.matching { it.name.startsWith('compile') && it.name.endsWith('Aidl') }.configureEach { task ->
+    task.doLast {
+        fileTree(task.sourceOutputDir.get().asFile).matching { include '**/*.java' }.each { f ->
+            def text = f.getText('UTF-8')
+            def fixed = text.readLines().collect { line ->
+                line.trim().startsWith('*') ? line.replace('\\', '/') : line
+            }.join('\n') + '\n'
+            if (fixed != text) {
+                f.write(fixed, 'UTF-8')
+            }
+        }
+    }
+}
+

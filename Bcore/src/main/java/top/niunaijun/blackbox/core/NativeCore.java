@@ -29,6 +29,10 @@ public class NativeCore {
     public static native void init(int apiLevel);
 
     public static native void enableIO();
+    public static native long socketOwner(int type, String src, int sp, String dst, int dp);
+    public static native void installCloneDns(boolean selected, String controlName);
+    public static native boolean cloneDnsActive();
+    public static native byte[][] cloneDns(String name, int family);
 
     public static native void addIORule(String targetPath, String relocatePath);
 

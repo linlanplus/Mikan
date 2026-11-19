@@ -365,6 +365,7 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
 
         int virtualUserId = BActivityThread.getUserId();
+        ProxyConfig.applyToCurrentProcess(virtualUserId, packageName);
         int hostUserId = BlackBoxCore.getHostUserId();
         PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(
                 packageName,
@@ -462,7 +463,6 @@ public class BActivityThread extends IBActivityThread.Stub {
         }
 
         NativeCore.init(Build.VERSION.SDK_INT);
-        ProxyConfig.applyToCurrentProcess(getUserId(), packageName);
         assert packageContext != null;
         IOCore.get().enableRedirect(packageContext);
 
@@ -1243,6 +1243,11 @@ public class BActivityThread extends IBActivityThread.Stub {
     }
 
 
+
+    @Override
+    public long socketOwner(int type, String src, int sp, String dst, int dp) {
+        return NativeCore.socketOwner(type, src, sp, dst, dp);
+    }
 
     @Override
     public IBinder getActivityThread() {

@@ -178,7 +178,15 @@ static jint nativeTryProxyConnect(JNIEnv *env, jclass, jobject fd, jbyteArray ip
     return tryJavaProxyConnect(env->GetIntField(fd, descriptor), bytes, length, port, scope);
 }
 
+jlong socketOwner(JNIEnv *, jclass, jint, jstring, jint, jstring, jint);
+void installCloneDns(JNIEnv *, jclass, jboolean, jstring);
+jboolean cloneDnsActive(JNIEnv *, jclass);
+jobjectArray cloneDns(JNIEnv *, jclass, jstring, jint);
 static JNINativeMethod gMethods[] = {
+        {"cloneDnsActive", "()Z", (void *) cloneDnsActive},
+        {"installCloneDns", "(ZLjava/lang/String;)V", (void *) installCloneDns},
+        {"cloneDns", "(Ljava/lang/String;I)[[B", (void *) cloneDns},
+        {"socketOwner", "(ILjava/lang/String;ILjava/lang/String;I)J", (void *) socketOwner},
         {"disableHiddenApi", "()Z",                               (void *) disableHiddenApi},
         {"disableResourceLoading", "()Z",                         (void *) disableResourceLoading},
         {"hideXposed", "()V",                                     (void *) hideXposed},

@@ -167,6 +167,32 @@ public class BActivityManagerService extends IBActivityManagerService.Stub imple
     }
 
     @Override
+    public String socketOwner(int type, String src, int sp, String dst, int dp) throws RemoteException {
+        return BProcessManagerService.get().socketOwner(type, src, sp, dst, dp);
+    }
+
+    @Override
+    public void releaseNetworkProviders(boolean stopSelected) { BProcessManagerService.get().releaseNetworkProviders(stopSelected); }
+
+    private android.net.Network vpnNetwork;
+    private IBinder vpnOwner;
+
+    @Override public synchronized android.net.Network cloneNetwork() {
+        return vpnOwner != null && vpnOwner.isBinderAlive() ? vpnNetwork : null;
+    }
+    @Override public synchronized void publishCloneNetwork(android.net.Network network, IBinder owner) {
+        android.app.ActivityManager am=(android.app.ActivityManager)BlackBoxCore.getContext().getSystemService(android.content.Context.ACTIVITY_SERVICE);
+        for (android.app.ActivityManager.RunningAppProcessInfo info:am.getRunningAppProcesses()) {
+            if (info.pid==android.os.Binder.getCallingPid() && info.processName.equals(BlackBoxCore.getHostPkg())) {
+                vpnNetwork=network;
+                vpnOwner=owner;
+                return;
+            }
+        }
+        throw new SecurityException("Only the host may publish the clone network");
+    }
+
+    @Override
     public RunningAppProcessInfo getRunningAppProcesses(String callerPackage, int userId) throws RemoteException {
         ActivityManager manager = (ActivityManager)
                 BlackBoxCore.getContext().getSystemService(Context.ACTIVITY_SERVICE);

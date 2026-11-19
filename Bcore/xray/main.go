@@ -37,6 +37,8 @@ import (
 
 const maxSubscription = 4 << 20
 
+var runGateway func(io.Reader, io.Writer) error
+
 type object = map[string]any
 
 type quietLog struct{}
@@ -48,6 +50,10 @@ func main() {
 	xlog.RegisterHandler(quietLog{})
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
+		case "gateway":
+			if runGateway != nil && runGateway(os.Stdin, os.Stdout) == nil {
+				return
+			}
 		case "import":
 			data, err := io.ReadAll(io.LimitReader(os.Stdin, maxSubscription+1))
 			if err == nil && len(data) <= maxSubscription {
