@@ -24,7 +24,9 @@ public final class DeviceBuildSpoofer {
         setStaticStringField("DEVICE", profile.device);
         setStaticStringField("PRODUCT", profile.product);
         setStaticStringField("FINGERPRINT", profile.fingerprint);
-        setStaticStringField("SERIAL", profile.serial);
+        if (DeviceIdentifiers.exposesBuildSerial()) {
+            setStaticStringField("SERIAL", profile.serial);
+        }
     }
 
     private static void setStaticStringField(String fieldName, String value) {

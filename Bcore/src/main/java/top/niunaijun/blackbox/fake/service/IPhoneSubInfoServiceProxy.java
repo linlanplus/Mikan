@@ -14,6 +14,7 @@ import black.com.android.internal.telephony.BRIPhoneSubInfoStub;
 import top.niunaijun.blackbox.BlackBoxCore;
 import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.fake.hook.BinderInvocationStub;
+import top.niunaijun.blackbox.fake.hook.ScanClass;
 import top.niunaijun.blackbox.utils.Slog;
 
 /**
@@ -23,6 +24,7 @@ import top.niunaijun.blackbox.utils.Slog;
  * cached interface fields we previously hooked, so we also hook the ServiceManager
  * entry directly.
  */
+@ScanClass(DeviceIdentifierHooks.class)
 public class IPhoneSubInfoServiceProxy extends BinderInvocationStub {
     public static final String TAG = "IPhoneSubInfoSvcProxy";
     private static final String SERVICE_NAME = "iphonesubinfo";

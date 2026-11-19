@@ -22,10 +22,11 @@ import top.niunaijun.blackbox.fake.frameworks.BLocationManager;
 import top.niunaijun.blackbox.fake.hook.BinderInvocationStub;
 import top.niunaijun.blackbox.fake.hook.MethodHook;
 import top.niunaijun.blackbox.fake.hook.ProxyMethod;
-import top.niunaijun.blackbox.utils.Md5Utils;
+import top.niunaijun.blackbox.fake.hook.ScanClass;
 import top.niunaijun.blackbox.utils.Slog;
 
 
+@ScanClass(DeviceIdentifierHooks.class)
 public class ITelephonyManagerProxy extends BinderInvocationStub {
     public static final String TAG = "ITelephonyManagerProxy";
 
@@ -126,36 +127,6 @@ public class ITelephonyManagerProxy extends BinderInvocationStub {
         return null;
     }
 
-    @ProxyMethod("getDeviceId")
-    public static class GetDeviceId extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-
-
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
-        }
-    }
-
-    @ProxyMethod("getImeiForSlot")
-    public static class getImeiForSlot extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-
-
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
-        }
-    }
-
-    @ProxyMethod("getMeidForSlot")
-    public static class GetMeidForSlot extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-
-
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
-        }
-    }
-
     @ProxyMethod("isUserDataEnabled")
     public static class IsUserDataEnabled extends MethodHook {
         @Override
@@ -170,22 +141,6 @@ public class ITelephonyManagerProxy extends BinderInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             return "";
-        }
-    }
-
-    @ProxyMethod("getSubscriberId")
-    public static class GetSubscriberId extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
-        }
-    }
-
-    @ProxyMethod("getDeviceIdWithFeature")
-    public static class GetDeviceIdWithFeature extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
         }
     }
 

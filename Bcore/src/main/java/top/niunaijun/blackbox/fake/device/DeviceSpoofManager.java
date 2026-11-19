@@ -182,14 +182,23 @@ public final class DeviceSpoofManager {
             }
             addProp(names, values, "ro.build.product", profile.device);
             addProp(names, values, "ro.build.description", buildDescription(profile));
-            addProp(names, values, "ro.serialno", profile.serial);
-            addProp(names, values, "ro.boot.serialno", profile.serial);
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                // From Android 8 ordinary apps cannot read these properties.
+                addProp(names, values, "ro.serialno", profile.serial);
+                addProp(names, values, "ro.boot.serialno", profile.serial);
+            }
             NativeCore.setPropOverrides(names.toArray(new String[0]), values.toArray(new String[0]));
             Slog.d(TAG, "Applied device spoof for user " + userId + ": " + profile.marketName
                     + " (" + profile.manufacturer + " " + profile.model + ")");
         } catch (Throwable e) {
             Slog.w(TAG, "Failed to apply device spoof for user " + userId + ": " + e.getMessage());
         }
+    }
+
+    /** Seed for the identifiers derived from a profile; changes with "random device". */
+    static String identitySeed(int userId) {
+        DeviceSpoofProfile profile = getProfile(userId);
+        return installSalt() + "|" + profile.serial + "|" + profile.androidId;
     }
 
     public static String getAndroidIdForCurrentUser() {
