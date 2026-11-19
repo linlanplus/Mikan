@@ -65,8 +65,10 @@ public final class GuardService extends VpnService {
                     wait.events = (short) android.system.OsConstants.POLLOUT;
                     if (android.system.Os.poll(new android.system.StructPollfd[] {wait}, 6000) <= 0)
                         return null;
-                    if (android.system.Os.getsockoptInt(socket, android.system.OsConstants.SOL_SOCKET,
-                            android.system.OsConstants.SO_ERROR) != 0)
+                    int events = wait.revents & 0xffff;
+                    if ((events & (android.system.OsConstants.POLLERR | android.system.OsConstants.POLLHUP
+                            | android.system.OsConstants.POLLNVAL)) != 0
+                            || (events & android.system.OsConstants.POLLOUT) == 0)
                         return null;
                 }
                 android.system.Os.fcntlInt(socket, android.system.OsConstants.F_SETFL, flags);

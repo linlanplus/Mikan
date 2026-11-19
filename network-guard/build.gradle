@@ -8,7 +8,7 @@ android {
     namespace 'uk.lqstudio.guard'
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId hostId + '.networkguard'
+        applicationId hostId
         minSdk rootProject.ext.minSdk
         targetSdk rootProject.ext.targetSdkVersion
         versionCode 1
@@ -24,10 +24,13 @@ android {
         }
     }
     buildTypes {
-        // The app's debug suffix is ".debug", so the guard package has to be
-        // <host>.debug.networkguard. Stripping ".networkguard" must yield the debug host id.
-        debug { applicationId hostId + '.debug.networkguard' }
-        release { signingConfig props.getProperty('storeFile') ? signingConfigs.release : signingConfigs.debug }
+        // Build types cannot set applicationId. Suffixes keep the package ending in
+        // .networkguard, so stripping that suffix yields the host id, including .debug.
+        debug { applicationIdSuffix '.debug.networkguard' }
+        release {
+            applicationIdSuffix '.networkguard'
+            signingConfig props.getProperty('storeFile') ? signingConfigs.release : signingConfigs.debug
+        }
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_21; targetCompatibility JavaVersion.VERSION_21 }
 }
