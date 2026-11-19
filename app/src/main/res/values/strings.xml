@@ -67,6 +67,8 @@
     <string name="device_spoofing_manufacturer">Device Manufacturer</string>
     <string name="device_spoofing_model">Device Model</string>
     <string name="device_spoofing_android_id">Android ID</string>
+    <string name="device_spoofing_oaid">OAID (advertising ID)</string>
+    <string name="device_spoofing_invalid_oaid">OAID must be 32 hexadecimal characters, or a 36 character UUID</string>
     <string name="device_spoofing_accept_change">Accept Change</string>
     <string name="device_spoofing_reset_to_default">Restore automatic device</string>
     <string name="device_spoofing_saved">Saved. Restart the clone to apply.</string>

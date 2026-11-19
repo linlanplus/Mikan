@@ -337,7 +337,9 @@ public class IConnectivityManagerProxy extends BinderInvocationStub {
                     
                     Object result = method.invoke(who, args);
                     if (result != null) {
-                        
+                        if (result instanceof android.net.NetworkCapabilities) {
+                            WifiIdentityRewriter.rewrite((android.net.NetworkCapabilities) result);
+                        }
                         try {
                             Method addCapabilityMethod = result.getClass().getMethod("addCapability", int.class);
                             addCapabilityMethod.setAccessible(true);
@@ -522,6 +524,7 @@ public class IConnectivityManagerProxy extends BinderInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             Slog.d(TAG, "Intercepting requestNetwork call for internet access");
+            WifiIdentityRewriter.wrapCallbackMessenger(args);
             try {
                 
                 Object result = method.invoke(who, args);
@@ -560,6 +563,39 @@ public class IConnectivityManagerProxy extends BinderInvocationStub {
     }
 
     
+    // ConnectivityManager.registerNetworkCallback reaches the service as listenForNetwork.
+    @ProxyMethod("listenForNetwork")
+    public static class ListenForNetwork extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            WifiIdentityRewriter.wrapCallbackMessenger(args);
+            try {
+                return method.invoke(who, args);
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                throw e.getCause();
+            }
+        }
+    }
+
+    @ProxyMethod("getDefaultNetworkCapabilitiesForUser")
+    public static class GetDefaultNetworkCapabilitiesForUser extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Object result;
+            try {
+                result = method.invoke(who, args);
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                throw e.getCause();
+            }
+            if (result instanceof android.net.NetworkCapabilities[]) {
+                for (android.net.NetworkCapabilities nc : (android.net.NetworkCapabilities[]) result) {
+                    WifiIdentityRewriter.rewrite(nc);
+                }
+            }
+            return result;
+        }
+    }
+
     @ProxyMethod("registerNetworkCallback")
     public static class RegisterNetworkCallback extends MethodHook {
         @Override

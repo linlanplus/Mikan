@@ -4,11 +4,10 @@ import android.content.Context;
 import android.net.wifi.WifiInfo;
 import android.util.Log;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 import black.android.net.wifi.BRIWifiManagerStub;
-import black.android.net.wifi.BRWifiInfo;
-import black.android.net.wifi.BRWifiSsid;
 import black.android.os.BRServiceManager;
 import top.niunaijun.blackbox.fake.hook.BinderInvocationStub;
 import top.niunaijun.blackbox.fake.hook.MethodHook;
@@ -42,10 +41,14 @@ public class IWifiManagerProxy extends BinderInvocationStub {
         
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            WifiInfo wifiInfo = (WifiInfo) method.invoke(who, args);
-            BRWifiInfo.get(wifiInfo)._set_mBSSID("ac:62:5a:82:65:c4");
-            BRWifiInfo.get(wifiInfo)._set_mMacAddress("ac:62:5a:82:65:c4");
-            BRWifiInfo.get(wifiInfo)._set_mWifiSsid(BRWifiSsid.get().createFromAsciiEncoded("BlackBox_Wifi"));
+            WifiInfo wifiInfo;
+            try {
+                wifiInfo = (WifiInfo) method.invoke(who, args);
+            } catch (InvocationTargetException e) {
+                throw e.getCause();
+            }
+            // The MAC address stays as the system reports it (02:00:00:00:00:00 for apps since Android 6).
+            WifiIdentityRewriter.rewrite(wifiInfo);
             return wifiInfo;
         }
 
@@ -67,6 +70,21 @@ public class IWifiManagerProxy extends BinderInvocationStub {
                 rs = rs | intSlice;
             }
             return rs;
+        }
+    }
+
+    @ProxyMethod("getScanResults")
+    public static class GetScanResults extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Object results;
+            try {
+                results = method.invoke(who, args);
+            } catch (InvocationTargetException e) {
+                throw e.getCause();
+            }
+            WifiIdentityRewriter.rewriteScanResults(results);
+            return results;
         }
     }
 }

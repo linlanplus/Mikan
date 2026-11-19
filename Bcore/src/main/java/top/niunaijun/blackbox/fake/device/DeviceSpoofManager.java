@@ -33,6 +33,13 @@ public final class DeviceSpoofManager {
     private static final String KEY_MARKET_NAME = "market_name_";
     private static final String KEY_SERIAL = "serial_";
     private static final String KEY_ANDROID_ID = "android_id_";
+    private static final String KEY_BOARD = "board_";
+    private static final String KEY_PLATFORM = "platform_";
+    private static final String KEY_HARDWARE = "hardware_";
+    private static final String KEY_SOC_MANUFACTURER = "soc_manufacturer_";
+    private static final String KEY_SOC_MODEL = "soc_model_";
+    private static final String KEY_DISPLAY_ID = "display_id_";
+    private static final String KEY_OAID = "oaid_";
 
     // Coprime with the preset count, so consecutive users land on different presets.
     private static final int PRESET_STEP = 7;
@@ -44,6 +51,12 @@ public final class DeviceSpoofManager {
             "ro.build.fingerprint", "ro.system.build.fingerprint", "ro.vendor.build.fingerprint",
             "ro.odm.build.fingerprint", "ro.product.build.fingerprint", "ro.system_ext.build.fingerprint",
             "ro.bootimage.build.fingerprint", "ro.vendor_dlkm.build.fingerprint"
+    };
+    private static final String[] INCREMENTAL_PROPS = {
+            "ro.build.version.incremental", "ro.system.build.version.incremental",
+            "ro.vendor.build.version.incremental", "ro.odm.build.version.incremental",
+            "ro.product.build.version.incremental", "ro.system_ext.build.version.incremental",
+            "ro.bootimage.build.version.incremental", "ro.vendor_dlkm.build.version.incremental"
     };
     private static final String[] MARKET_NAME_PROPS = {
             "ro.product.marketname", "ro.product.vendor.marketname", "ro.product.odm.marketname",
@@ -70,6 +83,7 @@ public final class DeviceSpoofManager {
             return getDefaultProfile(userId);
         }
         DeviceSpoofProfile defaults = getDefaultProfile(userId);
+        DevicePresets.Preset preset = DevicePresets.find(manufacturer, model);
         String brand = valueOrDefault(prefs.getString(KEY_BRAND + userId, null), slugify(manufacturer));
         String device = valueOrDefault(prefs.getString(KEY_DEVICE + userId, null), slugify(model));
         String product = valueOrDefault(prefs.getString(KEY_PRODUCT + userId, null), device);
@@ -83,7 +97,14 @@ public final class DeviceSpoofManager {
                 valueOrDefault(prefs.getString(KEY_MARKET_NAME + userId, null), model),
                 buildFingerprint(brand, product, device, serial),
                 serial,
-                valueOrDefault(prefs.getString(KEY_ANDROID_ID + userId, null), defaults.androidId)
+                valueOrDefault(prefs.getString(KEY_ANDROID_ID + userId, null), defaults.androidId),
+                stored(prefs, KEY_BOARD + userId, preset != null ? preset.board : ""),
+                stored(prefs, KEY_PLATFORM + userId, preset != null ? preset.platform : ""),
+                stored(prefs, KEY_HARDWARE + userId, preset != null ? preset.hardware : ""),
+                stored(prefs, KEY_SOC_MANUFACTURER + userId, preset != null ? preset.socManufacturer : ""),
+                stored(prefs, KEY_SOC_MODEL + userId, preset != null ? preset.socModel : ""),
+                stored(prefs, KEY_DISPLAY_ID + userId, preset != null ? preset.displayId : ""),
+                oaidFor(userId, preset, prefs)
         );
     }
 
@@ -95,44 +116,53 @@ public final class DeviceSpoofManager {
         DevicePresets.Preset preset = presets.get((base + userId * PRESET_STEP) % presets.size());
         return fromPreset(preset,
                 hexFromSeed(salt + "_serial_" + userId, 12).toUpperCase(Locale.US),
-                hexFromSeed(salt + "_android_id_" + userId, 16));
+                hexFromSeed(salt + "_android_id_" + userId, 16),
+                hexFromSeed(salt + "_oaid_" + userId, 32));
     }
 
     /** A random preset with fresh identifiers, for the "randomize" action. Not saved. */
     public static DeviceSpoofProfile randomProfile() {
         List<DevicePresets.Preset> presets = DevicePresets.all();
-        return fromPreset(presets.get(RANDOM.nextInt(presets.size())), randomHex(12).toUpperCase(Locale.US), randomHex(16));
+        return fromPreset(presets.get(RANDOM.nextInt(presets.size())), randomHex(12).toUpperCase(Locale.US),
+                randomHex(16), randomHex(32));
     }
 
-    /** A preset keeping the given identifiers. */
+    /** A preset keeping the given identifiers, re-shaped for the OAID style of the new vendor. */
     public static DeviceSpoofProfile presetProfile(DevicePresets.Preset preset, DeviceSpoofProfile current) {
-        return fromPreset(preset, current.serial, current.androidId);
+        String oaid = shapeOaid(current.oaid, preset.oaidStyle);
+        if (TextUtils.isEmpty(oaid) && preset.oaidStyle != DevicePresets.OAID_NONE) {
+            oaid = shapeOaid(randomHex(32), preset.oaidStyle);
+        }
+        return fromPreset(preset, current.serial, current.androidId, oaid);
     }
 
     /**
      * Saves values edited by hand. Brand and codename come from a matching preset when the
-     * manufacturer and model are one, otherwise they are derived from the names. [serial] is the
-     * one shown on screen (a new one after "random device"); an invalid one keeps the saved serial.
+     * manufacturer and model are one, otherwise they are derived from the names. The chip fields
+     * and the display name follow that preset; with no matching preset they are stored empty,
+     * which leaves the real Board and Hardware in place instead of inventing a chip. [serial] is
+     * the one shown on screen (a new one after "random device"); an invalid one keeps the saved
+     * serial.
      */
     public static void saveUserProfile(int userId, String marketName, String manufacturer, String model,
-                                       String serial, String androidId) {
+                                       String serial, String androidId, String oaid) {
         DeviceSpoofProfile current = getProfile(userId);
         String safeManufacturer = manufacturer.trim();
         String safeModel = model.trim();
         String brand = slugify(safeManufacturer);
         String device = slugify(safeModel);
         String product = device;
-        for (DevicePresets.Preset preset : DevicePresets.all()) {
-            if (preset.manufacturer.equalsIgnoreCase(safeManufacturer) && preset.model.equalsIgnoreCase(safeModel)) {
-                brand = preset.brand;
-                device = preset.device;
-                product = preset.product;
-                break;
-            }
+        DevicePresets.Preset preset = DevicePresets.find(safeManufacturer, safeModel);
+        if (preset != null) {
+            brand = preset.brand;
+            device = preset.device;
+            product = preset.product;
         }
+        int oaidStyle = preset != null ? preset.oaidStyle : DevicePresets.OAID_HEX32;
         String safeMarketName = TextUtils.isEmpty(marketName) ? safeModel : marketName.trim();
         String safeAndroidId = isValidAndroidId(androidId) ? androidId.trim().toLowerCase(Locale.US) : current.androidId;
         String safeSerial = isValidSerial(serial) ? serial.trim() : current.serial;
+        String safeOaid = isValidOaid(oaid) ? shapeOaid(oaid, oaidStyle) : current.oaid;
         prefs().edit()
                 .putString(KEY_MANUFACTURER + userId, safeManufacturer)
                 .putString(KEY_BRAND + userId, brand)
@@ -142,6 +172,13 @@ public final class DeviceSpoofManager {
                 .putString(KEY_MARKET_NAME + userId, safeMarketName)
                 .putString(KEY_SERIAL + userId, safeSerial)
                 .putString(KEY_ANDROID_ID + userId, safeAndroidId)
+                .putString(KEY_BOARD + userId, preset != null ? preset.board : "")
+                .putString(KEY_PLATFORM + userId, preset != null ? preset.platform : "")
+                .putString(KEY_HARDWARE + userId, preset != null ? preset.hardware : "")
+                .putString(KEY_SOC_MANUFACTURER + userId, preset != null ? preset.socManufacturer : "")
+                .putString(KEY_SOC_MODEL + userId, preset != null ? preset.socModel : "")
+                .putString(KEY_DISPLAY_ID + userId, preset != null ? preset.displayId : "")
+                .putString(KEY_OAID + userId, safeOaid)
                 .commit();
     }
 
@@ -155,6 +192,13 @@ public final class DeviceSpoofManager {
                 .remove(KEY_MARKET_NAME + userId)
                 .remove(KEY_SERIAL + userId)
                 .remove(KEY_ANDROID_ID + userId)
+                .remove(KEY_BOARD + userId)
+                .remove(KEY_PLATFORM + userId)
+                .remove(KEY_HARDWARE + userId)
+                .remove(KEY_SOC_MANUFACTURER + userId)
+                .remove(KEY_SOC_MODEL + userId)
+                .remove(KEY_DISPLAY_ID + userId)
+                .remove(KEY_OAID + userId)
                 .remove("fingerprint_" + userId)
                 .commit();
     }
@@ -173,27 +217,59 @@ public final class DeviceSpoofManager {
                 addProp(names, values, prefix + "model", profile.model);
                 addProp(names, values, prefix + "device", profile.device);
                 addProp(names, values, prefix + "name", profile.product);
+                addProp(names, values, prefix + "board", profile.board);
             }
             for (String prop : FINGERPRINT_PROPS) {
                 addProp(names, values, prop, profile.fingerprint);
             }
+            for (String prop : INCREMENTAL_PROPS) {
+                addProp(names, values, prop, incremental(profile.serial));
+            }
+            addProp(names, values, "ro.build.display.id", displayId(profile));
+            if (!TextUtils.isEmpty(profile.displayId)) {
+                // Huawei and HONOR publish their own build name next to the AOSP one.
+                addProp(names, values, "ro.huawei.build.display.id", profile.displayId);
+                addProp(names, values, "ro.honor.build.display.id", profile.displayId);
+            }
             for (String prop : MARKET_NAME_PROPS) {
                 addProp(names, values, prop, profile.marketName);
             }
+            addProp(names, values, "ro.board.platform", profile.platform);
+            addProp(names, values, "ro.hardware", profile.hardware);
+            addProp(names, values, "ro.hardware.chipname", profile.hardware);
+            addProp(names, values, "ro.soc.manufacturer", profile.socManufacturer);
+            addProp(names, values, "ro.soc.model", profile.socModel);
             addProp(names, values, "ro.build.product", profile.device);
             addProp(names, values, "ro.build.description", buildDescription(profile));
-            addProp(names, values, "ro.serialno", profile.serial);
-            addProp(names, values, "ro.boot.serialno", profile.serial);
+            // No oaid/persist.sys.oaid/ro.oaid property exists on a real phone, and inventing one
+            // is itself a tell. The OAID reaches the guest through the bind and query answers.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                // From Android 8 ordinary apps cannot read these properties.
+                addProp(names, values, "ro.serialno", profile.serial);
+                addProp(names, values, "ro.boot.serialno", profile.serial);
+            }
             NativeCore.setPropOverrides(names.toArray(new String[0]), values.toArray(new String[0]));
+            OaidSpoof.install(profile.oaid);
             Slog.d(TAG, "Applied device spoof for user " + userId + ": " + profile.marketName
-                    + " (" + profile.manufacturer + " " + profile.model + ")");
+                    + " (" + profile.manufacturer + " " + profile.model + ")"
+                    + (TextUtils.isEmpty(profile.displayId) ? "" : " display " + profile.displayId));
         } catch (Throwable e) {
             Slog.w(TAG, "Failed to apply device spoof for user " + userId + ": " + e.getMessage());
         }
     }
 
+    /** Seed for the identifiers derived from a profile; changes with "random device". */
+    static String identitySeed(int userId) {
+        DeviceSpoofProfile profile = getProfile(userId);
+        return installSalt() + "|" + profile.serial + "|" + profile.androidId;
+    }
+
     public static String getAndroidIdForCurrentUser() {
         return getProfile(currentUserId()).androidId;
+    }
+
+    public static String getOaidForCurrentUser() {
+        return getProfile(currentUserId()).oaid;
     }
 
     /**
@@ -208,10 +284,63 @@ public final class DeviceSpoofManager {
         if ("secure".equals(table) && "android_id".equals(key)) {
             return getAndroidIdForCurrentUser();
         }
+        if ("advertising_id".equals(key) || "oaid".equals(key)) {
+            String oaid = getOaidForCurrentUser();
+            return TextUtils.isEmpty(oaid) ? null : oaid;
+        }
+        if ("limit_ad_tracking".equals(key)) {
+            return "0";
+        }
         if ("device_name".equals(key) || "bluetooth_name".equals(key)) {
             return getProfile(currentUserId()).marketName;
         }
         return null;
+    }
+
+    /** 32 hex digits, or a 36 character UUID, as the vendors print them. */
+    public static boolean isValidOaid(String value) {
+        if (TextUtils.isEmpty(value)) {
+            return false;
+        }
+        String v = value.trim();
+        return v.matches("(?i)[0-9a-f]{32}")
+                || v.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    }
+
+    /** A raw value in the shape this vendor prints, or "" where the device has no OAID at all. */
+    static String shapeOaid(String raw, int style) {
+        if (style == DevicePresets.OAID_NONE || TextUtils.isEmpty(raw)) {
+            return "";
+        }
+        String hex = raw.replace("-", "").trim().toLowerCase(Locale.US);
+        if (!hex.matches("[0-9a-f]{32}")) {
+            return "";
+        }
+        if (style == DevicePresets.OAID_UUID36) {
+            return hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" + hex.substring(12, 16)
+                    + "-" + hex.substring(16, 20) + "-" + hex.substring(20, 32);
+        }
+        return hex;
+    }
+
+    static String displayId(DeviceSpoofProfile profile) {
+        if (profile == null || TextUtils.isEmpty(profile.displayId)) {
+            return Build.ID;
+        }
+        return profile.displayId;
+    }
+
+    private static String oaidFor(int userId, DevicePresets.Preset preset, SharedPreferences prefs) {
+        int style = preset != null ? preset.oaidStyle : DevicePresets.OAID_HEX32;
+        String salt = installSalt();
+        String source = prefs.contains(KEY_OAID + userId)
+                ? prefs.getString(KEY_OAID + userId, "")
+                : hexFromSeed(salt + "_oaid_" + userId, 32);
+        String oaid = shapeOaid(source, style);
+        if (TextUtils.isEmpty(oaid) && style != DevicePresets.OAID_NONE) {
+            oaid = shapeOaid(hexFromSeed(salt + "_oaid_" + userId, 32), style);
+        }
+        return oaid;
     }
 
     private static boolean isValidSerial(String value) {
@@ -230,7 +359,8 @@ public final class DeviceSpoofManager {
         }
     }
 
-    private static DeviceSpoofProfile fromPreset(DevicePresets.Preset preset, String serial, String androidId) {
+    private static DeviceSpoofProfile fromPreset(DevicePresets.Preset preset, String serial, String androidId,
+                                                 String oaid) {
         return new DeviceSpoofProfile(
                 preset.manufacturer,
                 preset.brand,
@@ -240,7 +370,14 @@ public final class DeviceSpoofManager {
                 preset.marketName,
                 buildFingerprint(preset.brand, preset.product, preset.device, serial),
                 serial,
-                androidId
+                androidId,
+                preset.board,
+                preset.platform,
+                preset.hardware,
+                preset.socManufacturer,
+                preset.socModel,
+                preset.displayId,
+                TextUtils.isEmpty(oaid) ? "" : shapeOaid(oaid, preset.oaidStyle)
         );
     }
 
@@ -255,7 +392,8 @@ public final class DeviceSpoofManager {
                 + incremental(profile.serial) + " release-keys";
     }
 
-    private static String incremental(String serial) {
+    /** Build number of the clone; the same value appears in the fingerprint and description. */
+    static String incremental(String serial) {
         long value = Math.abs((long) String.valueOf(Md5Utils.md5(serial)).hashCode());
         return "V" + (value % 900000000L + 100000000L);
     }
@@ -265,6 +403,14 @@ public final class DeviceSpoofManager {
             names.add(name);
             values.add(value);
         }
+    }
+
+    /** A stored value, where an empty string means "this clone has none" rather than "never saved". */
+    private static String stored(SharedPreferences prefs, String key, String fallback) {
+        if (prefs.contains(key)) {
+            return valueOrDefault(prefs.getString(key, null), "");
+        }
+        return valueOrDefault(fallback, "");
     }
 
     /** Creates the per-install salt from the host, before any guest process can race to create it. */

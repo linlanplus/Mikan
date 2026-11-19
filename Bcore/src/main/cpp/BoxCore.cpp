@@ -16,6 +16,7 @@
 #include <Hook/ProxyHook.h>
 #include "Utils/HexDump.h"
 #include "Utils/VirtualSpoof.h"
+#include "Utils/NativeCrashLog.h"
 #include "hidden_api.h"
 
 struct {
@@ -153,6 +154,13 @@ void setPropOverrides(JNIEnv *env, jclass clazz, jobjectArray names, jobjectArra
     }
 }
 
+void nativeInstallCrashLog(JNIEnv *env, jclass clazz, jstring path) {
+    if (path == nullptr) return;
+    const char *c_path = env->GetStringUTFChars(path, JNI_FALSE);
+    installNativeCrashLog(c_path);
+    env->ReleaseStringUTFChars(path, c_path);
+}
+
 void setProxy(JNIEnv *env, jclass clazz, jstring host, jint port, jstring user, jstring pass) {
     const char *c_host = host != nullptr ? env->GetStringUTFChars(host, JNI_FALSE) : nullptr;
     const char *c_user = user != nullptr ? env->GetStringUTFChars(user, JNI_FALSE) : nullptr;
@@ -194,6 +202,7 @@ static JNINativeMethod gMethods[] = {
         {"enableIO",   "()V",                                     (void *) enableIO},
         {"init",       "(I)V",                                    (void *) init},
         {"setPropOverrides", "([Ljava/lang/String;[Ljava/lang/String;)V", (void *) setPropOverrides},
+        {"installCrashLog", "(Ljava/lang/String;)V",              (void *) nativeInstallCrashLog},
         {"setProxy",   "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;)V", (void *) setProxy},
         {"setProxyBypass", "(Z)V",                                  (void *) nativeSetProxyBypass},
         {"tryProxyConnect", "(Ljava/io/FileDescriptor;[BII)I", (void *) nativeTryProxyConnect},

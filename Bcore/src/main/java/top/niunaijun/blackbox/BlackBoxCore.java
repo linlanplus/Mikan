@@ -1725,6 +1725,12 @@ public class BlackBoxCore extends ClientConfiguration {
             try {
                 NativeCore.init(android.os.Build.VERSION.SDK_INT);
                 Slog.d(TAG, "NativeCore initialized successfully");
+                File crashLog = top.niunaijun.blackbox.utils.FileLog.getProcessLogFile(getContext());
+                File logDir = crashLog.getParentFile();
+                if (logDir != null && (logDir.isDirectory() || logDir.mkdirs())) {
+                    NativeCore.installCrashLog(crashLog.getAbsolutePath());
+                    Slog.d(TAG, "Native crash log installed");
+                }
             } catch (Exception e) {
                 Slog.w(TAG, "NativeCore initialization failed: " + e.getMessage());
             }

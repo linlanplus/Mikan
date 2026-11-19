@@ -16,10 +16,11 @@ import top.niunaijun.blackbox.app.BActivityThread;
 import top.niunaijun.blackbox.fake.hook.BinderInvocationStub;
 import top.niunaijun.blackbox.fake.hook.MethodHook;
 import top.niunaijun.blackbox.fake.hook.ProxyMethod;
-import top.niunaijun.blackbox.utils.Md5Utils;
+import top.niunaijun.blackbox.fake.hook.ScanClass;
 import top.niunaijun.blackbox.utils.Slog;
 
 
+@ScanClass(DeviceIdentifierHooks.class)
 public class IDeviceIdentifiersPolicyProxy extends BinderInvocationStub {
     public static final String TAG = "IDeviceIdPolicyProxy";
 
@@ -108,7 +109,7 @@ public class IDeviceIdentifiersPolicyProxy extends BinderInvocationStub {
             return 0d;
         }
         if (rt == String.class) {
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
+            return null;
         }
         if (List.class.isAssignableFrom(rt)) {
             return Collections.emptyList();
@@ -122,29 +123,4 @@ public class IDeviceIdentifiersPolicyProxy extends BinderInvocationStub {
         return null;
     }
 
-    @ProxyMethod("getSerialForPackage")
-    public static class x extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-
-
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
-        }
-    }
-
-    @ProxyMethod("getImeiForSlot")
-    public static class getImeiForSlot extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
-        }
-    }
-
-    @ProxyMethod("getMeidForSlot")
-    public static class getMeidForSlot extends MethodHook {
-        @Override
-        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return Md5Utils.md5(BlackBoxCore.getHostPkg());
-        }
-    }
 }

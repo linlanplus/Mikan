@@ -49,6 +49,7 @@ class DeviceSpoofingActivity : BaseActivity() {
             val manufacturer = viewBinding.deviceManufacturerEdit.text?.toString().orEmpty().trim()
             val model = viewBinding.deviceModelEdit.text?.toString().orEmpty().trim()
             val androidId = viewBinding.androidIdEdit.text?.toString().orEmpty().trim()
+            val oaid = viewBinding.oaidEdit.text?.toString().orEmpty().trim()
 
             if (manufacturer.isBlank() || model.isBlank()) {
                 toast(R.string.device_spoofing_fill_required)
@@ -58,9 +59,14 @@ class DeviceSpoofingActivity : BaseActivity() {
                 toast(R.string.device_spoofing_invalid_android_id)
                 return@setOnClickListener
             }
+            // An empty field is correct for the models whose vendor has no OAID service.
+            if (oaid.isNotEmpty() && !DeviceSpoofManager.isValidOaid(oaid)) {
+                toast(R.string.device_spoofing_invalid_oaid)
+                return@setOnClickListener
+            }
 
             // The serial has no field; it comes from what is shown (a new one after "random device").
-            DeviceSpoofManager.saveUserProfile(currentUserID(), marketName, manufacturer, model, shownProfile.serial, androidId)
+            DeviceSpoofManager.saveUserProfile(currentUserID(), marketName, manufacturer, model, shownProfile.serial, androidId, oaid)
             bindCurrentProfile()
             toast(R.string.device_spoofing_saved)
         }
@@ -89,6 +95,7 @@ class DeviceSpoofingActivity : BaseActivity() {
         viewBinding.deviceManufacturerEdit.setText(profile.manufacturer)
         viewBinding.deviceModelEdit.setText(profile.model)
         viewBinding.androidIdEdit.setText(profile.androidId)
+        viewBinding.oaidEdit.setText(profile.oaid)
     }
 
     companion object {

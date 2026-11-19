@@ -49,6 +49,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // A separate package name lets a debug build sit next to an installed release one
+            // instead of forcing an uninstall, which would take the clone data with it. Every
+            // authority in the manifest uses ${applicationId} and every runtime path is built from
+            // BlackBoxCore.getHostPkg(), so nothing else has to change.
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
         release {
             signingConfig keystoreProps.getProperty("storeFile") ? signingConfigs.release : signingConfigs.debug
             minifyEnabled true

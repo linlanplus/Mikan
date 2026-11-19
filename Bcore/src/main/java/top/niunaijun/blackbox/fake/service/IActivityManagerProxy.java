@@ -19,6 +19,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Objects;
+import java.util.UUID;
 
 import black.android.app.BRActivityManagerNative;
 import black.android.app.BRActivityManagerOreo;
@@ -41,6 +42,7 @@ import top.niunaijun.blackbox.entity.am.RunningServiceInfo;
 import top.niunaijun.blackbox.fake.delegate.ContentProviderDelegate;
 import top.niunaijun.blackbox.fake.delegate.InnerReceiverDelegate;
 import top.niunaijun.blackbox.fake.delegate.ServiceConnectionDelegate;
+import top.niunaijun.blackbox.fake.device.OaidSpoof;
 import top.niunaijun.blackbox.fake.frameworks.BActivityManager;
 import top.niunaijun.blackbox.fake.frameworks.BPackageManager;
 import top.niunaijun.blackbox.fake.hook.ClassInvocationStub;
@@ -71,6 +73,12 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 @ScanClass(ActivityManagerCommonProxy.class)
 public class IActivityManagerProxy extends ClassInvocationStub {
     public static final String TAG = "ActivityManagerStub";
+
+    // All guests bind under the host package. Keep renderer instances distinct
+    // across guest processes, including a restarted process that reuses a slot/PID.
+    // The namespace stays stable for reconnects during this process lifetime.
+    private static final String SERVICE_INSTANCE_PREFIX =
+            "mikan_" + UUID.randomUUID().toString().replace("-", "") + "_";
 
     private static final String PKG_SAMSUNG_HEALTH = "com.sec.android.app.shealth";
     private static final String PKG_SAMSUNG_ACCOUNT = "com.osp.app.signin";
@@ -215,6 +223,10 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                 if (auth.equals("settings")
                         || auth.equals("media")
                         || auth.equals("telephony")
+                        // vivo serves its OAID from a provider; the answer is spoofed in
+                        // ContentProviderStub. A host that is not vivo has no such provider and
+                        // gets a null holder, which is what a real phone of that vendor returns.
+                        || ((String) auth).startsWith("com.vivo.vms")
                         || ((String) auth).contains("com.google.android.gms")
                         || ((String) auth).contains("com.android.vending")
                         || ((String) auth).contains("com.google.android.gsf")
@@ -222,7 +234,9 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                         || auth.equals("com.huawei.android.launcher.settings")
                         || auth.equals("com.hihonor.android.launcher.settings")) {
                     content = method.invoke(who, args);
-                    ContentProviderDelegate.update(content, (String) auth);
+                    if (content != null) {
+                        ContentProviderDelegate.update(content, (String) auth);
+                    }
                     return content;
                 } else {
                     
@@ -442,6 +456,10 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     }
 
     public static Object BindServiceCommon(Object who, Method method, Object[] args,int callingPackageIndex) throws Throwable {
+        args = args.clone();
+        if (callingPackageIndex == 7 && args[6] instanceof String) {
+            args[6] = SERVICE_INSTANCE_PREFIX + args[6];
+        }
         try {
             Intent intent = (Intent) args[2];
             String resolvedType = (String) args[3];
@@ -451,6 +469,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             if (intent == null) {
                 Slog.w(TAG, "BindServiceCommon: Intent is null, proceeding with original call");
                 return method.invoke(who, args);
+            }
+
+            if (OaidSpoof.tryFakeBind(intent, connection)) {
+                // The clone's OAID service is answered locally; the vendor service is never asked.
+                return 1;
             }
 
             
@@ -478,12 +501,22 @@ public class IActivityManagerProxy extends ClassInvocationStub {
 
                 
                 if (proxyIntent != null && proxyIntent.getComponent() != null && 
-                    proxyIntent.getComponent().getPackageName().equals(BlackBoxCore.getHostPkg())){
+                    proxyIntent.getComponent().getPackageName().equals(BlackBoxCore.getHostPkg()) &&
+                    proxyIntent.getComponent().getClassName().startsWith(
+                            "top.niunaijun.blackbox.proxy.ProxyService$P")){
+                    // Only our non-isolated proxy services must lose instanceName.
+                    // Real WebView isolated services retain their per-process identity.
+                    if (callingPackageIndex == 7) {
+                        args[6] = null;
+                    }
                     int flagsIndex = getFlagsIndex(args);
                     if (flagsIndex >= 0) {
-                        int flags = MethodParameterUtils.toInt(args[flagsIndex]);
-                        flags &= ~Context.BIND_EXTERNAL_SERVICE;
-                        args[flagsIndex] = flags;
+                        // Android 14+ uses long flags; retain high bits and argument type.
+                        if (args[flagsIndex] instanceof Long) {
+                            args[flagsIndex] = (Long) args[flagsIndex] & ~(Context.BIND_EXTERNAL_SERVICE & 0xffffffffL);
+                        } else {
+                            args[flagsIndex] = (Integer) args[flagsIndex] & ~Context.BIND_EXTERNAL_SERVICE;
+                        }
                     }
                 }
                 args[callingPackageIndex] = BlackBoxCore.getHostPkg();
@@ -529,13 +562,6 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     public static class bindServiceInstance extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            if (args != null && args.length > 6) {
-                // Android 14+/16 rejects instance names for normal non-isolated
-                // proxy services. Our proxy layer already multiplexes by extras,
-                // so keep the sandbox bind path and strip the framework-level
-                // instance token before the real bind.
-                args[6] = null;
-            }
             return BindServiceCommon(who,method,args,7);
         }
 
@@ -551,7 +577,6 @@ public class IActivityManagerProxy extends ClassInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             
-            args[6] = null;
             return BindServiceCommon(who,method,args,7);
         }
 
@@ -569,6 +594,11 @@ public class IActivityManagerProxy extends ClassInvocationStub {
             IServiceConnection iServiceConnection = (IServiceConnection) args[0];
             if (iServiceConnection == null) {
                 return method.invoke(who, args);
+            }
+            if (OaidSpoof.consumeFakedConnection(iServiceConnection.asBinder())) {
+                // That bind never reached the system, so the unbind must not either. The AIDL
+                // returns boolean from Android 10 on, and a proxy answers null with an NPE.
+                return true;
             }
             BlackBoxCore.getBActivityManager().unbindService(iServiceConnection.asBinder(), BActivityThread.getUserId());
             ServiceConnectionDelegate delegate = ServiceConnectionDelegate.getDelegate(iServiceConnection.asBinder());

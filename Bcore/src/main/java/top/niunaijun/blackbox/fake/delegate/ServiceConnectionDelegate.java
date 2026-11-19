@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import black.android.app.BRIServiceConnectionO;
+import top.niunaijun.blackbox.fake.device.OaidSpoof;
 import top.niunaijun.blackbox.utils.compat.BuildCompat;
 
 
@@ -19,10 +20,12 @@ public class ServiceConnectionDelegate extends IServiceConnection.Stub {
     private static final Map<IBinder, ServiceConnectionDelegate> sServiceConnectDelegate = new HashMap<>();
     private final IServiceConnection mConn;
     private final ComponentName mComponentName;
+    private final Intent mIntent;
 
-    private ServiceConnectionDelegate(IServiceConnection mConn, ComponentName targetComponent) {
+    private ServiceConnectionDelegate(IServiceConnection mConn, Intent intent) {
         this.mConn = mConn;
-        this.mComponentName = targetComponent;
+        this.mIntent = intent;
+        this.mComponentName = intent != null ? intent.getComponent() : null;
     }
 
     public static ServiceConnectionDelegate getDelegate(IBinder iBinder) {
@@ -44,7 +47,7 @@ public class ServiceConnectionDelegate extends IServiceConnection.Stub {
             } catch (RemoteException e) {
                 e.printStackTrace();
             }
-            delegate = new ServiceConnectionDelegate(base, intent.getComponent());
+            delegate = new ServiceConnectionDelegate(base, intent);
             sServiceConnectDelegate.put(iBinder, delegate);
         }
         return delegate;
@@ -56,10 +59,13 @@ public class ServiceConnectionDelegate extends IServiceConnection.Stub {
     }
 
     public void connected(ComponentName name, IBinder service, boolean dead) throws RemoteException {
+        // An OAID service the guest bound reaches the app with the clone's own identifier instead
+        // of the phone's, whenever the bind was not already answered by the fake one.
+        IBinder effective = OaidSpoof.wrap(mIntent, service);
         if (BuildCompat.isOreo()) {
-            BRIServiceConnectionO.get(mConn).connected(mComponentName, service, dead);
+            BRIServiceConnectionO.get(mConn).connected(mComponentName, effective, dead);
         } else {
-            mConn.connected(name, service);
+            mConn.connected(name, effective);
         }
     }
 
@@ -75,7 +81,8 @@ public class ServiceConnectionDelegate extends IServiceConnection.Stub {
                     android.app.IBinderSession.class,
                     boolean.class
             );
-            method.invoke(mConn, mComponentName != null ? mComponentName : name, service, session, dead);
+            method.invoke(mConn, mComponentName != null ? mComponentName : name,
+                    OaidSpoof.wrap(mIntent, service), session, dead);
             return;
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause();
