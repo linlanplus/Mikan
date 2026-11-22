@@ -875,12 +875,27 @@ public final class BlackBoxMediaStore {
         database.beginTransaction();
         try {
             createMediaSchema(database);
-            database.execSQL("ALTER TABLE media_entries ADD COLUMN orientation INTEGER NOT NULL DEFAULT 0");
+            // A 1.0.1.x build sets the version back to 1 but keeps the column added by 1.0.2.
+            if (!hasColumn(database, "media_entries", "orientation")) {
+                database.execSQL("ALTER TABLE media_entries ADD COLUMN orientation INTEGER NOT NULL DEFAULT 0");
+            }
             database.setVersion(DATABASE_VERSION);
             database.setTransactionSuccessful();
         } finally {
             database.endTransaction();
         }
+    }
+
+    private static boolean hasColumn(SQLiteDatabase database, String table, String column) {
+        try (Cursor cursor = database.rawQuery("PRAGMA table_info(" + table + ")", null)) {
+            int nameIndex = cursor.getColumnIndexOrThrow("name");
+            while (cursor.moveToNext()) {
+                if (column.equalsIgnoreCase(cursor.getString(nameIndex))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static void createMediaSchema(SQLiteDatabase database) {
